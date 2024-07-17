@@ -1,4 +1,5 @@
 import sys
+import time
 from html import unescape
 from azure.communication.callautomation import (
     PhoneNumberIdentifier,
@@ -23,7 +24,9 @@ class ActionProcessor:
                 self.logger.info(f"Asset: {asset}")
                 if asset['Action'] == 0:
                     url_file = ActionProcessor.parse_url(asset["RecordingUrl"])
+                    duration = asset["Duration_MS"]
                     self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
+                    time.sleep(duration / 1000.0)
                 elif asset['Action'] == 1:
                     url_file = self.parse_url(asset["RecordingUrl"])
                     self.handle_recognize(
