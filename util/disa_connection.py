@@ -9,9 +9,9 @@ class DisaConnection:
     def call_first_url(logger, did, caller_id):
 
         if did.startswith('+'):
-            did = did[1:]
+            did = did[2:]
         if caller_id.startswith('+'):
-            caller_id = caller_id[1:]
+            caller_id = caller_id[2:]
 
         url = f"https://dfainbound.azurewebsites.net/api/v1/inbound/requestroute/{did}/{caller_id}"
         logger.info(f"Calling url: {url}")
