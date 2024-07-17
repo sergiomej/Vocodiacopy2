@@ -133,7 +133,7 @@ def handle_callback(contextId):
                 transfer_agent = disa.get("TransferDestination", "")
                 correlation_id = disa.get("CorrelationId", "")
 
-                action_proc = ActionProcessor(logger=logging, call_connection_id=call_connection_id,
+                action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id,
                                               caller_id=caller_id, call_automation_client=call_automation_client,
                                               transfer_agent=transfer_agent, correlation_id=correlation_id)
                 action_proc.process(disa["PlayBackAssets"])
@@ -203,7 +203,7 @@ def handle_callback(contextId):
     except Exception as ex:
         logger.info(f"error in event handling [{ex}]")
         line = sys.exc_info()[-1].tb_lineno
-        logging.error("Error in line #{} Msg: {}".format(line, ex))
+        logger.error("Error in line #{} Msg: {}".format(line, ex))
 
 
 @app.route("/")

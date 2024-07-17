@@ -1,3 +1,4 @@
+import sys
 from html import unescape
 from azure.communication.callautomation import (
     PhoneNumberIdentifier,
@@ -14,25 +15,31 @@ class ActionProcessor:
         self.call_automation_client = call_automation_client
         self.transfer_agent = transfer_agent
         self.correlation_id = correlation_id
-        pass
 
     def process(self, playback_assets):
-        for asset in playback_assets:
-            if asset['Action'] == 0:
-                url_file = ActionProcessor.parse_url(asset["RecordingUrl"])
-                ActionProcessor.handle_play(self.call_connection_id, url_file, "", context=self.correlation_id)
-            elif asset['Action'] == 1:
-                url_file = self.parse_url(asset["RecordingUrl"])
-                self.handle_recognize(
-                    self.caller_id, self.call_connection_id,
-                    context="GetFreeFormText", url=url_file)
-            elif asset['Action'] == 21:
-                url_file = self.parse_url(asset["RecordingUrl"])
-                self.logger.info("Transfer to +++++++++++++++++++++++++++")
-                self.transfer_call_to_agent(call_connection_id=self.call_connection_id,
-                                            agent_phone_number=self.transfer_agent)
-            else:
-                self.logger.info("No valid action")
+
+        try:
+            for asset in playback_assets:
+                self.logger.info(f"Asset: {asset}")
+                if asset['Action'] == 0:
+                    url_file = ActionProcessor.parse_url(asset["RecordingUrl"])
+                    self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
+                elif asset['Action'] == 1:
+                    url_file = self.parse_url(asset["RecordingUrl"])
+                    self.handle_recognize(
+                        self.caller_id, self.call_connection_id,
+                        context="GetFreeFormText", url=url_file)
+                elif asset['Action'] == 21:
+                    url_file = self.parse_url(asset["RecordingUrl"])
+                    self.logger.info("Transfer to +++++++++++++++++++++++++++")
+                    self.transfer_call_to_agent(call_connection_id=self.call_connection_id,
+                                                agent_phone_number=self.transfer_agent)
+                else:
+                    self.logger.info("No valid action")
+        except Exception as e:
+            self.logger.error(e)
+            line = sys.exc_info()[-1].tb_lineno
+            self.logger.error("Error in line #{} Msg: {}".format(line, e))
 
     def handle_recognize(self, callerId, call_connection_id, context="", url=""):
         self.logger.info(f"URL to play: {url}")
