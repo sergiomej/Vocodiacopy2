@@ -1,6 +1,6 @@
 import json
 import websockets
-from urllib import request as request_lib, error
+from urllib import request, error
 
 
 class DisaConnection:
@@ -9,16 +9,23 @@ class DisaConnection:
         pass
 
     @staticmethod
-    def call_first_url(logger, did, caller_id):
-        url = f'https://dfainbound.azurewebsites.net/api/v1/inbound/requestroute/{did}/{caller_id}'
+    def call_first_url(did, caller_id):
+
+        if did.startswith('+'):
+            did = did[1:]
+        if caller_id.startswith('+'):
+            caller_id = caller_id[1:]
+
+        url = f"https://dfainbound.azurewebsites.net/api/v1/inbound/requestroute/{did}/{caller_id}"
 
         try:
-            response = request_lib.urlopen(url)
+            response = request.urlopen(url)
             data = json.loads(response.read().decode('utf-8'))
-            logger.info(f'First URL: {data["Disa"]}')
+            print(f'Response first url: {data["Disa"]}')
             return data["Disa"]
+
         except error.URLError as e:
-            logger.error(f'Disa call first url error: {e}')
+            print(f'Error getting the first url [{url}]: {e}')
 
     @staticmethod
     async def run_disa_socket(correlation_id, message):

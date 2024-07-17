@@ -1,20 +1,14 @@
-from urllib import request, error
-import json
 
-def call_first_url():
-    url = 'https://dfainbound.azurewebsites.net/api/v1/inbound/requestroute/3213215510/9546483989'  # Ejemplo de URL
+from util.disa_connection import DisaConnection
 
-    try:
-        # Realizar la solicitud GET
-        response = request.urlopen(url)
+import logging
 
-        # Leer la respuesta
-        data = json.loads(response.read().decode('utf-8'))
-        print(data["Disa"])
-        # Imprimir la respuesta
-        return data["Disa"]
+logging.basicConfig(
+    filename='call.log',  # Nombre del archivo de logs
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.DEBUG  # Nivel de logging, por ejemplo DEBUG, INFO, ERROR
+)
 
-    except error.URLError as e:
-        print(f'Error al hacer la solicitud: {e}')
+logger = logging.getLogger(__name__)
 
-call_first_url()
+DisaConnection.call_first_url("+32132155100", "+9546483989")
