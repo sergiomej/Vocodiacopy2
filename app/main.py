@@ -45,25 +45,25 @@ app = Flask(__name__)
 
 correlation_id = ""
 
-logging.basicConfig(
-    filename='call.log',  # Nombre del archivo de logs
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG  # Nivel de logging, por ejemplo DEBUG, INFO, ERROR
-)
-
+logger = logging.getLogger('mi_logger')
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 @app.route("/api/incomingCall", methods=['POST'])
 def incoming_call_handler():
     for event_dict in request.json:
         event = EventGridEvent.from_dict(event_dict)
-        logging.info("incoming event data --> %s", event.data)
+        logger.info("incoming event data --> %s", event.data)
         if event.event_type == SystemEventNames.EventGridSubscriptionValidationEventName:
-            logging.info("Validating subscription")
+            logger.info("Validating subscription")
             validation_code = event.data['validationCode']
             validation_response = {'validationResponse': validation_code}
             return Response(response=json.dumps(validation_response), status=200)
         elif event.event_type == "Microsoft.Communication.IncomingCall":
-            logging.info("Incoming call received: data=%s",
+            logger.info("Incoming call received: data=%s",
                          event.data)
 
             if event.data['from']['kind'] == "phoneNumber":
@@ -71,7 +71,7 @@ def incoming_call_handler():
             else:
                 caller_id = event.data['from']['rawId']
 
-            logging.info("incoming call handler caller id: %s",
+            logger.info("incoming call handler caller id: %s",
                          caller_id)
 
             if event.data['to']['kind'] == "phoneNumber":
@@ -79,10 +79,10 @@ def incoming_call_handler():
             else:
                 did = event.data['to']['rawId']
 
-            logging.info("incoming call handler caller id: %s",
+            logger.info("incoming call handler caller id: %s",
                          caller_id)
 
-            logging.info("incoming call handler did: %s",
+            logger.info("incoming call handler did: %s",
                          did)
 
             incoming_call_context = event.data['incomingCallContext']
@@ -90,12 +90,12 @@ def incoming_call_handler():
             query_parameters = urlencode({"callerId": caller_id, "did": did})
             callback_uri = f"{CALLBACK_EVENTS_URI}/{guid}?{query_parameters}"
 
-            logging.info("callback url: %s", callback_uri)
+            logger.info("callback url: %s", callback_uri)
 
             answer_call_result = call_automation_client.answer_call(incoming_call_context=incoming_call_context,
                                                                     cognitive_services_endpoint=COGNITIVE_SERVICE_ENDPOINT,
                                                                     callback_url=callback_uri)
-            logging.info("Answered call for connection id: %s",
+            logger.info("Answered call for connection id: %s",
                          answer_call_result.call_connection_id)
             return Response(status=200)
 
@@ -104,12 +104,12 @@ def incoming_call_handler():
 def handle_callback(contextId):
     try:
         global did, caller_id, call_connection_id, correlation_id, transfer_agent
-        logging.info("Request Json: %s", request.json)
+        logger.info("Request Json: %s", request.json)
         for event_dict in request.json:
             event = CloudEvent.from_dict(event_dict)
             call_connection_id = event.data['callConnectionId']
 
-            logging.info("%s event received for call connection id: %s", event.type, call_connection_id)
+            logger.info("%s event received for call connection id: %s", event.type, call_connection_id)
             caller_id = request.args.get("callerId").strip()
             did = request.args.get("did").strip()
 
@@ -119,10 +119,10 @@ def handle_callback(contextId):
             if "+" not in did:
                 did = "+".strip() + did.strip()
 
-            logging.info("call connected : data=%s", event.data)
+            logger.info("call connected : data=%s", event.data)
             if event.type == "Microsoft.Communication.CallConnected":
 
-                disa = DisaConnection.call_first_url(did=did, caller_id=caller_id)
+                disa = DisaConnection.call_first_url(logger=logger, did=did, caller_id=caller_id)
 
                 transfer_agent = disa.get("TransferDestination", "")
                 correlation_id = disa.get("CorrelationId", "")
@@ -135,7 +135,7 @@ def handle_callback(contextId):
             elif event.type == "Microsoft.Communication.RecognizeCompleted":
                 if event.data['recognitionType'] == "speech":
                     speech_text = event.data['speechResult']['speech']
-                    logging.info("Recognition completed, speech_text =%s",
+                    logger.info("Recognition completed, speech_text =%s",
                                  speech_text)
                     if speech_text is not None and len(speech_text) > 0:
 
@@ -144,7 +144,7 @@ def handle_callback(contextId):
 
                         disa_response = json.loads(disa_response)
 
-                        logging.info(f"Response from disa: {disa_response}")
+                        logger.info(f"Response from disa: {disa_response}")
 
                         correlation_id = disa_response["CorrelationId"]
 
@@ -172,30 +172,30 @@ def handle_callback(contextId):
                     handle_hangup(call_connection_id)
                 elif context.lower() == CONNECT_AGENT_CONTEXT.lower():
                     if not AGENT_PHONE_NUMBER or AGENT_PHONE_NUMBER.isspace():
-                        logging.info(f"Agent phone number is empty")
+                        logger.info(f"Agent phone number is empty")
                         handle_play(call_connection_id=call_connection_id, text_to_play=AGENT_PHONE_NUMBER_EMPTY_PROMPT)
                     else:
-                        logging.info(f"Initializing the Call transfer...")
+                        logger.info(f"Initializing the Call transfer...")
                         transfer_destination = PhoneNumberIdentifier(AGENT_PHONE_NUMBER)
                         call_connection_client = call_automation_client.get_call_connection(
                             call_connection_id=call_connection_id)
                         call_connection_client.transfer_call_to_participant(target_participant=transfer_destination)
-                        logging.info(f"Transfer call initiated: {context}")
+                        logger.info(f"Transfer call initiated: {context}")
 
             elif event.type == "Microsoft.Communication.CallTransferAccepted":
                 logging.info(f"Call transfer accepted event received for connection id: {call_connection_id}")
 
             elif event.type == "Microsoft.Communication.CallTransferFailed":
-                logging.info(f"Call transfer failed event received for connection id: {call_connection_id}")
+                logger.info(f"Call transfer failed event received for connection id: {call_connection_id}")
                 resultInformation = event.data['resultInformation']
                 sub_code = resultInformation['subCode']
                 # check for message extraction and code
-                logging.info(f"Encountered error during call transfer, message=, code=, subCode={sub_code}")
+                logger.info(f"Encountered error during call transfer, message=, code=, subCode={sub_code}")
                 handle_play(call_connection_id=call_connection_id, text_to_play=CALLTRANSFER_FAILURE_PROMPT,
                             context=TRANSFER_FAILED_CONTEXT)
         return Response(status=200)
     except Exception as ex:
-        logging.info(f"error in event handling [{ex}]")
+        logger.info(f"error in event handling [{ex}]")
         line = sys.exc_info()[-1].tb_lineno
         logging.error("Error in line #{} Msg: {}".format(line, ex))
 

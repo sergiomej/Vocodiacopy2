@@ -5,11 +5,8 @@ from urllib import request, error
 
 class DisaConnection:
 
-    def __init__(self):
-        pass
-
     @staticmethod
-    def call_first_url(did, caller_id):
+    def call_first_url(logger, did, caller_id):
 
         if did.startswith('+'):
             did = did[1:]
@@ -17,15 +14,15 @@ class DisaConnection:
             caller_id = caller_id[1:]
 
         url = f"https://dfainbound.azurewebsites.net/api/v1/inbound/requestroute/{did}/{caller_id}"
-
+        logger.info(f"Calling url: {url}")
         try:
             response = request.urlopen(url)
             data = json.loads(response.read().decode('utf-8'))
-            print(f'Response first url: {data["Disa"]}')
+            logger.info(f'Response first url: {data["Disa"]}')
             return data["Disa"]
 
         except error.URLError as e:
-            print(f'Error getting the first url [{url}]: {e}')
+            logger.info(f'Error getting the first url [{url}]: {e}')
 
     @staticmethod
     async def run_disa_socket(correlation_id, message):
