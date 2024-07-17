@@ -23,7 +23,7 @@ ACS_CONNECTION_STRING = "endpoint=https://communication-disa-test.unitedstates.c
 COGNITIVE_SERVICE_ENDPOINT = "https://testaivocodia.cognitiveservices.azure.com/"
 
 # Callback events URI to handle callback events.
-CALLBACK_URI_HOST = "https://0343-172-208-55-190.ngrok-free.app"
+CALLBACK_URI_HOST = "https://switch.ngrok.dev"
 CALLBACK_EVENTS_URI = CALLBACK_URI_HOST + "/api/callbacks"
 
 GOODBYE_PROMPT = "Thank you for calling! I hope I was able to assist you. Have a great day!"
