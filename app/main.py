@@ -122,10 +122,10 @@ def handle_callback(contextId):
             logging.info("call connected : data=%s", event.data)
             if event.type == "Microsoft.Communication.CallConnected":
 
-                disa = DisaConnection().call_first_url(logging, did=did, caller_id=caller_id)
+                disa = DisaConnection().call_first_url(did=did, caller_id=caller_id)
 
-                transfer_agent = disa["TransferDestination"]
-                correlation_id = disa["CorrelationId"]
+                transfer_agent = disa.get("TransferDestination", "")
+                correlation_id = disa.get("CorrelationId", "")
 
                 action_proc = ActionProcessor(logger=logging, call_connection_id=call_connection_id,
                                               caller_id=caller_id, call_automation_client=call_automation_client,

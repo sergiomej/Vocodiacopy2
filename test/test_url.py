@@ -11,4 +11,4 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-DisaConnection.call_first_url("+32132155100", "+9546483989")
+DisaConnection.call_first_url("+8332866392", "+573044336760")
