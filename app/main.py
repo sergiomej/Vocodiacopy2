@@ -144,8 +144,8 @@ def handle_callback(contextId):
                     logger.info("Recognition completed, speech_text =%s",
                                  speech_text)
                     if speech_text is not None and len(speech_text) > 0:
-
-                        disa_response = asyncio.run(DisaConnection.run_disa_socket(correlation_id=correlation_id,
+                        logger.info(f"Data to send DISA socket: correlation_id={event.data['correlationId']}, message={speech_text}")
+                        disa_response = asyncio.run(DisaConnection.run_disa_socket(correlation_id=event.data["correlationId"],
                                                                                    message=speech_text))
 
                         disa_response = json.loads(disa_response)
