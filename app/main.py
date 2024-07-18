@@ -63,6 +63,9 @@ file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(m
 file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
 
+# TODO: Maybe something like memcached or redict ?
+IN_MEM_STATE = dict()
+
 @app.route("/api/incomingCall", methods=['POST'])
 def incoming_call_handler():
     for event_dict in request.json:
@@ -144,19 +147,25 @@ def handle_callback(contextId):
                 case "CallConnected":
                     # Call connected
 
-                    recording_response: RecordingProperties = call_automation_client.start_recording(
-                                call_locator=server_call_id,
-                                recording_content_type=RecordingContentType.Audio,
-                                recording_channel_type=RecordingChannel.Unmixed,
-                                recording_format_type=RecordingFormat.Wav,
-                                recording_storage=AzureBlobContainerRecordingStorage(
-                                    container_url=blob_container_url
-                                    ),
-                                )
+                    recording_response: RecordingProperties = (
+                        call_automation_client.start_recording(
+                            call_locator=server_call_id,
+                            recording_content_type=RecordingContentType.Audio,
+                            recording_channel_type=RecordingChannel.Unmixed,
+                            recording_format_type=RecordingFormat.Wav,
+                            recording_storage=AzureBlobContainerRecordingStorage(
+                                container_url=blob_container_url
+                            ),
+                        )
+                    )
+
+                    # We keep a common state for all the recordings that are associated to a
+                    # ServerCallId. This key, in theory, is unique per _phone call_.
+                    IN_MEM_STATE[server_call_id] = recording_response
 
                     disa = DisaConnection.call_first_url(
-                        logger=logger, did=did, caller_id=caller_id
-                    )
+                            logger=logger, did=did, caller_id=caller_id
+                        )
 
                     transfer_agent = disa.get("TransferDestination", "")
                     correlation_id = disa.get("CorrelationId", "")
