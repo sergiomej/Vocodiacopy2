@@ -241,6 +241,9 @@ def handle_callback(contextId):
                 case "RecordingStateChanged":
                     # Status of recording action has been toggle (active | inactive)
                     continue
+                case "CallEnded":
+                    # The call has finished
+                    continue
                 case "CallTransferFailed":
                     # A failure!
                     logger.error(
