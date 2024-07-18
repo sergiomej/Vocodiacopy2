@@ -157,7 +157,7 @@ def handle_callback(contextId):
                         action_proc = ActionProcessor(logger=logging, call_connection_id=call_connection_id,
                                                       caller_id=caller_id,
                                                       call_automation_client=call_automation_client,
-                                                      transfer_agent=transfer_agent, correlation_id=correlation_id)
+                                                      transfer_agent="", correlation_id=correlation_id)
                         action_proc.process(disa_response["PlayBackAssets"])
 
             elif event.type == "Microsoft.Communication.RecognizeFailed":

@@ -9,7 +9,7 @@ from azure.communication.callautomation import (
 
 class ActionProcessor:
 
-    def __init__(self, logger, call_connection_id, caller_id, call_automation_client, transfer_agent=None, correlation_id=None):
+    def __init__(self, logger, call_connection_id, caller_id, call_automation_client, transfer_agent="", correlation_id=""):
         self.call_connection_id = call_connection_id
         self.logger = logger
         self.caller_id = caller_id
