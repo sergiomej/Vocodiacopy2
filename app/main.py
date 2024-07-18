@@ -164,8 +164,8 @@ def handle_callback(contextId):
                     IN_MEM_STATE[server_call_id] = recording_response
 
                     disa = DisaConnection.call_first_url(
-                            logger=logger, did=did, caller_id=caller_id
-                        )
+                        logger=logger, did=did, caller_id=caller_id
+                    )
 
                     transfer_agent = disa.get("TransferDestination", "")
                     correlation_id = disa.get("CorrelationId", "")
@@ -272,7 +272,19 @@ def handle_callback(contextId):
                     continue
                 case "CallEnded":
                     # The call has finished
-                    continue
+                    server_call_id = event.data["serverCallId"]
+                    recording_to_stop = IN_MEM_STATE.pop(
+                        server_call_id
+                    )  # Removed from IN MEM STATE
+
+                    logger.info(
+                        f"The call has ended. Stopping recording for serverCallId: {server_call_id}"
+                    )
+
+                    call_automation_client.stop_recording(
+                        recording_id=recording_to_stop.recording_id
+                    )
+
                 case "CallTransferFailed":
                     # A failure!
                     logger.error(
