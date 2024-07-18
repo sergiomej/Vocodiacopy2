@@ -132,7 +132,7 @@ def handle_callback(contextId):
 
                 transfer_agent = disa.get("TransferDestination", "")
                 correlation_id = disa.get("CorrelationId", "")
-
+                logger.info(f"primer correlation_id: {correlation_id}")
                 action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id,
                                               caller_id=caller_id, call_automation_client=call_automation_client,
                                               transfer_agent=transfer_agent, correlation_id=correlation_id)
@@ -144,8 +144,8 @@ def handle_callback(contextId):
                     logger.info("Recognition completed, speech_text =%s",
                                  speech_text)
                     if speech_text is not None and len(speech_text) > 0:
-                        logger.info(f"Data to send DISA socket: correlation_id={event.data['correlationId']}, message={speech_text}")
-                        disa_response = asyncio.run(DisaConnection.run_disa_socket(correlation_id=event.data["correlationId"],
+                        logger.info(f"Data to send DISA socket: correlation_id={event.data['operationContext']}, message={speech_text}")
+                        disa_response = asyncio.run(DisaConnection.run_disa_socket(correlation_id=event.data['operationContext'],
                                                                                    message=speech_text))
 
                         disa_response = json.loads(disa_response)

@@ -9,7 +9,7 @@ from azure.communication.callautomation import (
 
 class ActionProcessor:
 
-    def __init__(self, logger, call_connection_id, caller_id, call_automation_client, transfer_agent, correlation_id):
+    def __init__(self, logger, call_connection_id, caller_id, call_automation_client, transfer_agent=None, correlation_id=None):
         self.call_connection_id = call_connection_id
         self.logger = logger
         self.caller_id = caller_id
@@ -31,7 +31,7 @@ class ActionProcessor:
                     url_file = self.parse_url(asset["RecordingUrl"])
                     self.handle_recognize(
                         self.caller_id, self.call_connection_id,
-                        context="GetFreeFormText", url=url_file)
+                        context=self.correlation_id, url=url_file)
                 elif asset['Action'] == 21:
                     url_file = self.parse_url(asset["RecordingUrl"])
                     self.logger.info("Transfer to +++++++++++++++++++++++++++")

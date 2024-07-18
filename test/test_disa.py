@@ -9,8 +9,8 @@ async def send_and_receive(uri):
             print(f"Conectado a {uri}")
 
             # Enviar un mensaje al servidor
-            event_data = {"CorrelationId": "74929868-ff1f-46a9-b3dc-0a063d649c26", "SessionData": None,
-                          "Message": "yes", "IsFinal": True, "Locale": "en-US"}
+            event_data = {"CorrelationId": "ece34df4-4a4b-459c-a56c-54434aa878c1", "SessionData": None,
+                          "Message": "Electric", "IsFinal": True, "Locale": "en-US"}
             await websocket.send(json.dumps(event_data))
             print(f"Mensaje enviado al servidor: {json.dumps(event_data)}")
 
