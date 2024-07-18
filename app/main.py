@@ -29,11 +29,11 @@ CALLBACK_EVENTS_URI = CALLBACK_URI_HOST + "/api/callbacks"
 GOODBYE_PROMPT = "Thank you for calling! I hope I was able to assist you. Have a great day!"
 CONNECT_AGENT_PROMPT = "I'm sorry, I was not able to assist you with your request. Let me transfer you to an agent who can help you further. Please hold the line, and I willl connect you shortly."
 
-#TRANSFER_FAILED_CONTEXT = "TransferFailed"
-#CONNECT_AGENT_CONTEXT = "ConnectAgent"
-#GOODBYE_CONTEXT = "Goodbye"
+# TRANSFER_FAILED_CONTEXT = "TransferFailed"
+# CONNECT_AGENT_CONTEXT = "ConnectAgent"
+# GOODBYE_CONTEXT = "Goodbye"
 
-#AGENT_PHONE_NUMBER_EMPTY_PROMPT = "I am sorry, we are currently experiencing high call volumes and all of our agents are currently busy. Our next available agent will call you back as soon as possible."
+# AGENT_PHONE_NUMBER_EMPTY_PROMPT = "I am sorry, we are currently experiencing high call volumes and all of our agents are currently busy. Our next available agent will call you back as soon as possible."
 
 call_automation_client = CallAutomationClient.from_connection_string(ACS_CONNECTION_STRING)
 
@@ -113,9 +113,11 @@ def handle_callback(contextId):
         logger.info("Request Json: %s", request.json)
         for event_dict in request.json:
             event = CloudEvent.from_dict(event_dict)
-            call_connection_id = event.data['callConnectionId']
+            call_connection_id = event.data["callConnectionId"]
 
-            logger.info("%s event received for call connection id: %s", event.type, call_connection_id)
+            logger.info(
+                "%s event received for call connection id: %s", event.type, call_connection_id
+            )
             caller_id = request.args.get("callerId").strip()
             did = request.args.get("did").strip()
 
@@ -126,84 +128,173 @@ def handle_callback(contextId):
                 did = "+".strip() + did.strip()
 
             logger.info("call connected : data=%s", event.data)
-            if event.type == "Microsoft.Communication.CallConnected":
 
-                disa = DisaConnection.call_first_url(logger=logger, did=did, caller_id=caller_id)
+            communication_event_type = event.type.split("Microsoft.Communication.").pop()
 
-                transfer_agent = disa.get("TransferDestination", "")
-                correlation_id = disa.get("CorrelationId", "")
-                logger.info(f"primer correlation_id: {correlation_id}")
-                action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id,
-                                              caller_id=caller_id, call_automation_client=call_automation_client,
-                                              transfer_agent=transfer_agent, correlation_id=correlation_id)
-                action_proc.process(disa["PlayBackAssets"])
+            match communication_event_type:
+                case "CallConnected":
+                    # Call connected
+                    disa = DisaConnection.call_first_url(
+                        logger=logger, did=did, caller_id=caller_id
+                    )
 
-            elif event.type == "Microsoft.Communication.RecognizeCompleted":
-                if event.data['recognitionType'] == "speech":
-                    speech_text = event.data['speechResult']['speech']
-                    logger.info("Recognition completed, speech_text =%s",
-                                 speech_text)
-                    if speech_text is not None and len(speech_text) > 0:
-                        logger.info(f"Data to send DISA socket: correlation_id={event.data['operationContext']}, message={speech_text}")
-                        disa_response = asyncio.run(DisaConnection.run_disa_socket(correlation_id=event.data['operationContext'],
-                                                                                   message=speech_text))
+                    transfer_agent = disa.get("TransferDestination", "")
+                    correlation_id = disa.get("CorrelationId", "")
 
-                        disa_response = json.loads(disa_response)
+                    logger.info(f"primer correlation_id: {correlation_id}")
 
-                        logger.info(f"Response from disa: {disa_response}")
+                    action_proc = ActionProcessor(
+                        logger=logger,
+                        call_connection_id=call_connection_id,
+                        caller_id=caller_id,
+                        call_automation_client=call_automation_client,
+                        transfer_agent=transfer_agent,
+                        correlation_id=correlation_id,
+                    )
 
-                        correlation_id = disa_response["CorrelationId"]
+                    action_proc.process(disa["PlayBackAssets"])
+                case "CallTransferAccepted":
+                    # Call transfered to another endpoint
+                    logging.info(
+                        f"Call transfer accepted event received for connection id: {call_connection_id}"
+                    )
+                case "RecognizeCompleted":
+                    # User input received correctly
+                    # We assume, for the time being, that we only handle speech to text.
+                    # Options for recognition types: speech | dtmf | choices | speechordtmf
+                    if event.data["recognitionType"] == "speech":
+                        speech_text = event.data["speechResult"]["speech"]
 
-                        action_proc = ActionProcessor(logger=logging, call_connection_id=call_connection_id,
-                                                      caller_id=caller_id,
-                                                      call_automation_client=call_automation_client,
-                                                      transfer_agent="", correlation_id=correlation_id)
-                        action_proc.process(disa_response["PlayBackAssets"])
+                        logger.info("Recognition completed, speech_text =%s", speech_text)
 
-            elif event.type == "Microsoft.Communication.RecognizeFailed":
-                result_info = event.data['resultInformation']
-                reason_code = result_info['subCode']
-                context = event.data['operationContext']
-                global max_retry
-                if reason_code == 8510 and 0 < max_retry:
-                    handle_recognize(TIMEOUT_SILENCE_PROMPT, caller_id, call_connection_id)
-                    max_retry -= 1
-                else:
-                    handle_play(call_connection_id, GOODBYE_PROMPT, GOODBYE_CONTEXT)
+                        if speech_text is not None and len(speech_text) > 0:
+                            logger.info(
+                                f"Data to send DISA socket: correlation_id={event.data['operationContext']}, message={speech_text}"
+                            )
 
-            elif event.type == "Microsoft.Communication.PlayCompleted":
-                context = event.data['operationContext']
+                            disa_response = asyncio.run(
+                                DisaConnection.run_disa_socket(
+                                    correlation_id=event.data["operationContext"],
+                                    message=speech_text,
+                                )
+                            )
 
-                if context.lower() == TRANSFER_FAILED_CONTEXT.lower() or context.lower() == GOODBYE_CONTEXT.lower():
-                    handle_hangup(call_connection_id)
-                elif context.lower() == CONNECT_AGENT_CONTEXT.lower():
-                    if not AGENT_PHONE_NUMBER or AGENT_PHONE_NUMBER.isspace():
-                        logger.info(f"Agent phone number is empty")
-                        handle_play(call_connection_id=call_connection_id, text_to_play=AGENT_PHONE_NUMBER_EMPTY_PROMPT)
+                            disa_response = json.loads(disa_response)
+
+                            logger.info(f"Response from disa: {disa_response}")
+
+                            correlation_id = disa_response["CorrelationId"]
+
+                            action_proc = ActionProcessor(
+                                logger=logging,
+                                call_connection_id=call_connection_id,
+                                caller_id=caller_id,
+                                call_automation_client=call_automation_client,
+                                transfer_agent="",
+                                correlation_id=correlation_id,
+                            )
+                            action_proc.process(disa_response["PlayBackAssets"])
+                        else:
+                            logger.error(f"Something looks weird. No speech detected. {event.data}")
+                            # Speech text didn't work???
+                case "CallDisconnected":
+                    # Call disconnected
+                    continue
+                case "AddParticipantSucceeded":
+                    # Added participant to call - This is triggered when bot answer succeeded.
+                    continue
+                case "CancelAddParticipantSucceeded":
+                    # Cancelled an addition
+                    continue
+                case "RemoveParticipantSucceeded":
+                    # Participant removed from call
+                    continue
+                case "ParticipantsUpdated":
+                    # a participant status changed while call leg was connected to call
+                    continue
+                case "PlayCompleted":
+                    # Audio provided to call played correctly
+                    continue
+
+                    # TODO: Be creative!
+                    # context = event.data['operationContext']
+                    # if context.lower() == TRANSFER_FAILED_CONTEXT.lower() or context.lower() == GOODBYE_CONTEXT.lower():
+                    #     handle_hangup(call_connection_id)
+                    # # Accepted
+                    # elif context.lower() == CONNECT_AGENT_CONTEXT.lower():
+                    #     if not AGENT_PHONE_NUMBER or AGENT_PHONE_NUMBER.isspace():
+                    #         logger.info(f"Agent phone number is empty")
+                    #         handle_play(call_connection_id=call_connection_id, text_to_play=AGENT_PHONE_NUMBER_EMPTY_PROMPT)
+                    #     else:
+                    #         logger.info(f"Initializing the Call transfer...")
+                    #         transfer_destination = PhoneNumberIdentifier(AGENT_PHONE_NUMBER)
+                    #         call_connection_client = call_automation_client.get_call_connection(
+                    #             call_connection_id=call_connection_id)
+                    #         call_connection_client.transfer_call_to_participant(target_participant=transfer_destination)
+                    #         logger.info(f"Transfer call initiated: {context}")
+                case "PlayCanceled":
+                    # Request to cancel a play worked
+                    continue
+                case "RecognizeCanceled":
+                    # A request to cancel an input received.
+                    continue
+                case "RecordingStateChanged":
+                    # Status of recording action has been toggle (active | inactive)
+                    continue
+                case "CallTransferFailed":
+                    # A failure!
+                    logger.error(
+                        f"Call transfer failed event received for connection id: {call_connection_id}"
+                    )
+                    resultInformation = event.data["resultInformation"]
+                    sub_code = resultInformation["subCode"]
+                    # check for message extraction and code
+                    logger.error(
+                        f"Encountered error during call transfer, message=, code=, subCode={sub_code}"
+                    )
+                    handle_play(
+                        call_connection_id=call_connection_id,
+                        text_to_play=CALLTRANSFER_FAILURE_PROMPT,
+                        context=TRANSFER_FAILED_CONTEXT,
+                    )
+                case "RecognizeFailed":
+                    # User input couldn't be recognised.
+                    result_info = event.data["resultInformation"]
+                    reason_code = result_info["subCode"]
+                    context = event.data["operationContext"]
+
+                    global max_retry
+
+                    # Waiting for answer reached timeout, so we check if we can retry
+                    # more reason codes: https://learn.microsoft.com/en-us/azure/communication-services/how-tos/call-automation/recognize-action?pivots=programming-language-python#event-codes
+                    if reason_code == 8510 and 0 < max_retry:
+                        handle_recognize(TIMEOUT_SILENCE_PROMPT, caller_id, call_connection_id)
+                        max_retry -= 1
                     else:
-                        logger.info(f"Initializing the Call transfer...")
-                        transfer_destination = PhoneNumberIdentifier(AGENT_PHONE_NUMBER)
-                        call_connection_client = call_automation_client.get_call_connection(
-                            call_connection_id=call_connection_id)
-                        call_connection_client.transfer_call_to_participant(target_participant=transfer_destination)
-                        logger.info(f"Transfer call initiated: {context}")
+                        handle_play(call_connection_id, GOODBYE_PROMPT, GOODBYE_CONTEXT)
+                case "AddParticipanFailed":
+                    # Added participant failed!
+                    continue
+                case "CancelAddParticipantFailed":
+                    # A failure!
+                    continue
+                case "RemoveParticipantFailed":
+                    # A failure!
+                    continue
+                case "PlayFailed":
+                    # An error playing the audio!
+                    continue
+                case _:
+                    # Default
+                    continue
 
-            elif event.type == "Microsoft.Communication.CallTransferAccepted":
-                logging.info(f"Call transfer accepted event received for connection id: {call_connection_id}")
-
-            elif event.type == "Microsoft.Communication.CallTransferFailed":
-                logger.info(f"Call transfer failed event received for connection id: {call_connection_id}")
-                resultInformation = event.data['resultInformation']
-                sub_code = resultInformation['subCode']
-                # check for message extraction and code
-                logger.info(f"Encountered error during call transfer, message=, code=, subCode={sub_code}")
-                handle_play(call_connection_id=call_connection_id, text_to_play=CALLTRANSFER_FAILURE_PROMPT,
-                            context=TRANSFER_FAILED_CONTEXT)
+        # We should always return a 200 OK when an object has been handled correctly
         return Response(status=200)
     except Exception as ex:
         logger.info(f"error in event handling [{ex}]")
         line = sys.exc_info()[-1].tb_lineno
         logger.error("Error in line #{} Msg: {}".format(line, ex))
+        return Response(status=500)
 
 
 @app.route("/")
