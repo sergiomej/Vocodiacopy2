@@ -10,8 +10,13 @@ from util.disa_connection import DisaConnection
 from util.action_processor import ActionProcessor
 
 from azure.communication.callautomation import (
+    AzureBlobContainerRecordingStorage,
     CallAutomationClient,
-    PhoneNumberIdentifier
+    PhoneNumberIdentifier,
+    RecordingChannel,
+    RecordingContent,
+    RecordingFormat,
+    RecordingProperties
 )
 
 from azure.core.messaging import CloudEvent
@@ -131,9 +136,24 @@ def handle_callback(contextId):
 
             communication_event_type = event.type.split("Microsoft.Communication.").pop()
 
+            server_call_id = event.data["serverCallId"]  # Mandatory for recording
+            # TODO: Extract to ENV
+            blob_container_url = "https://audiopoctest.blob.core.windows.net/audiorecordings"
+
             match communication_event_type:
                 case "CallConnected":
                     # Call connected
+
+                    recording_response: RecordingProperties = call_automation_client.start_recording(
+                                call_locator=server_call_id,
+                                recording_content_type=RecordingContentType.Audio,
+                                recording_channel_type=RecordingChannel.Unmixed,
+                                recording_format_type=RecordingFormat.Wav,
+                                recording_storage=AzureBlobContainerRecordingStorage(
+                                    container_url=blob_container_url
+                                    ),
+                                )
+
                     disa = DisaConnection.call_first_url(
                         logger=logger, did=did, caller_id=caller_id
                     )
