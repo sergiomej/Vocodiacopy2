@@ -20,6 +20,7 @@ from azure.communication.callautomation import (
 )
 
 from azure.core.messaging import CloudEvent
+from pymemcache.client.base import PooledClient
 
 # Your ACS resource connection string
 ACS_CONNECTION_STRING = "endpoint=https://communication-disa-test.unitedstates.communication.azure.com/;accesskey=o4eO9kiaTeFSCGX1ka7h5HNbGdTqVQH0sFLSKQWblmtkW81zjn86JQQJ99AFACULyCphSYATAAAAAZCSFls1"
@@ -63,8 +64,8 @@ file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(m
 file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
 
-# TODO: Maybe something like memcached or redict ?
-IN_MEM_STATE = dict()
+# max_pool_size should be at least half the number of workers plus 1 and less than Max memcached connections - 1.
+IN_MEM_STATE_CLIENT = PooledClient("127.0.0.1", max_pool_size=5)
 
 @app.route("/api/incomingCall", methods=['POST'])
 def incoming_call_handler():
@@ -161,7 +162,7 @@ def handle_callback(contextId):
 
                     # We keep a common state for all the recordings that are associated to a
                     # ServerCallId. This key, in theory, is unique per _phone call_.
-                    IN_MEM_STATE[server_call_id] = recording_response
+                    IN_MEM_STATE_CLIENT.set(server_call_id, recording_response)
 
                     disa = DisaConnection.call_first_url(
                         logger=logger, did=did, caller_id=caller_id
@@ -273,17 +274,23 @@ def handle_callback(contextId):
                 case "CallEnded":
                     # The call has finished
                     server_call_id = event.data["serverCallId"]
-                    recording_to_stop = IN_MEM_STATE.pop(
-                        server_call_id
-                    )  # Removed from IN MEM STATE
+                    recording_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id)
 
-                    logger.info(
-                        f"The call has ended. Stopping recording for serverCallId: {server_call_id}"
-                    )
+                    if record_to_stop:
+                        logger.info(
+                            f"The call has ended. Stopping recording for serverCallId: {server_call_id}"
+                        )
 
-                    call_automation_client.stop_recording(
-                        recording_id=recording_to_stop.recording_id
-                    )
+                        call_automation_client.stop_recording(
+                            recording_id=recording_to_stop.recording_id
+                        )
+
+                        IN_MEM_STATE_CLIENT.delete(server_call_id)
+                    else:
+                        logger.error(
+                            (f"The call with serverCallId: {server_call_id} "
+                             "does not have an associated recording id.")
+                        )
 
                 case "CallTransferFailed":
                     # A failure!
