@@ -16,7 +16,8 @@ from azure.communication.callautomation import (
     RecordingChannel,
     RecordingContent,
     RecordingFormat,
-    RecordingProperties
+    RecordingProperties,
+    ServerCallLocator
 )
 
 from azure.core.messaging import CloudEvent
@@ -148,10 +149,14 @@ def handle_callback(contextId):
                 case "CallConnected":
                     # Call connected
 
+                    logger.info(
+                        f"Call connected. Starting recording for serverCallId {server_call_id}"
+                    )
+
                     recording_response: RecordingProperties = (
                         call_automation_client.start_recording(
-                            call_locator=server_call_id,
-                            recording_content_type=RecordingContentType.Audio,
+                            call_locator=ServerCallLocator(server_call_id),
+                            recording_content_type=RecordingContent.Audio,
                             recording_channel_type=RecordingChannel.Unmixed,
                             recording_format_type=RecordingFormat.Wav,
                             recording_storage=AzureBlobContainerRecordingStorage(
