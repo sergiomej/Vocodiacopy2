@@ -10,11 +10,17 @@ from util.disa_connection import DisaConnection
 from util.action_processor import ActionProcessor
 
 from azure.communication.callautomation import (
+    AzureBlobContainerRecordingStorage,
     CallAutomationClient,
-    PhoneNumberIdentifier
+    PhoneNumberIdentifier,
+    RecordingChannel,
+    RecordingContent,
+    RecordingFormat,
+    RecordingProperties
 )
 
 from azure.core.messaging import CloudEvent
+from pymemcache.client.base import PooledClient
 
 # Your ACS resource connection string
 ACS_CONNECTION_STRING = "endpoint=https://communication-disa-test.unitedstates.communication.azure.com/;accesskey=o4eO9kiaTeFSCGX1ka7h5HNbGdTqVQH0sFLSKQWblmtkW81zjn86JQQJ99AFACULyCphSYATAAAAAZCSFls1"
@@ -57,6 +63,9 @@ file_handler = logging.FileHandler('call_log.log')
 file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
+
+# max_pool_size should be at least half the number of workers plus 1 and less than Max memcached connections - 1.
+IN_MEM_STATE_CLIENT = PooledClient("127.0.0.1", max_pool_size=5)
 
 @app.route("/api/incomingCall", methods=['POST'])
 def incoming_call_handler():
@@ -131,9 +140,30 @@ def handle_callback(contextId):
 
             communication_event_type = event.type.split("Microsoft.Communication.").pop()
 
+            server_call_id = event.data["serverCallId"]  # Mandatory for recording
+            # TODO: Extract to ENV
+            blob_container_url = "https://audiopoctest.blob.core.windows.net/audiorecordings"
+
             match communication_event_type:
                 case "CallConnected":
                     # Call connected
+
+                    recording_response: RecordingProperties = (
+                        call_automation_client.start_recording(
+                            call_locator=server_call_id,
+                            recording_content_type=RecordingContentType.Audio,
+                            recording_channel_type=RecordingChannel.Unmixed,
+                            recording_format_type=RecordingFormat.Wav,
+                            recording_storage=AzureBlobContainerRecordingStorage(
+                                container_url=blob_container_url
+                            ),
+                        )
+                    )
+
+                    # We keep a common state for all the recordings that are associated to a
+                    # ServerCallId. This key, in theory, is unique per _phone call_.
+                    IN_MEM_STATE_CLIENT.set(server_call_id, recording_response)
+
                     disa = DisaConnection.call_first_url(
                         logger=logger, did=did, caller_id=caller_id
                     )
@@ -243,7 +273,25 @@ def handle_callback(contextId):
                     continue
                 case "CallEnded":
                     # The call has finished
-                    continue
+                    server_call_id = event.data["serverCallId"]
+                    recording_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id)
+
+                    if record_to_stop:
+                        logger.info(
+                            f"The call has ended. Stopping recording for serverCallId: {server_call_id}"
+                        )
+
+                        call_automation_client.stop_recording(
+                            recording_id=recording_to_stop.recording_id
+                        )
+
+                        IN_MEM_STATE_CLIENT.delete(server_call_id)
+                    else:
+                        logger.error(
+                            (f"The call with serverCallId: {server_call_id} "
+                             "does not have an associated recording id.")
+                        )
+
                 case "CallTransferFailed":
                     # A failure!
                     logger.error(
