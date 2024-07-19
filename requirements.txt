@@ -4,3 +4,4 @@ azure-communication-callautomation==1.2.0
 openai==0.28.1
 azure-core
 websockets
+pymemcache==4.0.0
