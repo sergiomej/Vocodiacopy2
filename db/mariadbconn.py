@@ -75,6 +75,36 @@ class MariaDBConnection:
         if self.cursor:
             return self.cursor.fetchone()
 
+    def insert_event(self, correlation_id, phone, start, end, action, data, latency, label):
+        """
+        Inserts a new record into the 'event' table.
+
+        Args:
+            correlation_id (str): The correlation ID for the event.
+            phone (str): The phone number associated with the event.
+            start (datetime): The start datetime of the event.
+            end (datetime): The end datetime of the event.
+            action (str): The action performed in the event.
+            data (bytes): The binary data related to the event.
+            latency (int): The latency of the event.
+            label (str): The label for the event.
+        """
+        query = """
+          INSERT INTO event (correlation_id, phone, start, end, action, data, latency, label)
+          VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+          """
+        params = (
+            correlation_id,  # CHAR(36)
+            phone,  # VARCHAR(16)
+            start,  # DATETIME(6)
+            end,  # DATETIME(6)
+            action,  # VARCHAR(12)
+            data,  # TINYBLOB (binary data)
+            latency,  # INT(11)
+            label  # VARCHAR(32)
+        )
+        self.execute_query(query, params)
+
     def close(self):
         """
         Closes the connection to the MariaDB database and the cursor.
