@@ -286,7 +286,7 @@ def handle_callback(contextId):
                     # Call disconnected
                     # The call was finished in a non expected manner.
                     server_call_id = event.data["serverCallId"]
-                    correlation_id = event.data["operationContext"],
+                    correlation_id = event.data["correlationId"],
                     recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id).decode('utf-8')
 
                     if recording_id_to_stop:
@@ -365,15 +365,15 @@ def handle_callback(contextId):
                     # The call has finished
                     server_call_id = event.data["serverCallId"]
                     correlation_id = event.data["operationContext"],
-                    recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id)
+                    recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id).decode('utf-8')
 
-                    if record_to_stop:
+                    if recording_id_to_stop:
                         logger.info(
                             f"The call has ended. Stopping recording for serverCallId: {server_call_id}"
                         )
 
                         call_automation_client.stop_recording(
-                            recording_id=recording_id_to_stop.decode('utf-8')
+                            recording_id=recording_id_to_stop
                         )
 
                         logger.info(f"Stopped recording with ID: {recording_id_to_stop}")
@@ -395,7 +395,8 @@ def handle_callback(contextId):
                     else:
                         logger.error(
                             (f"The call with serverCallId: {server_call_id} "
-                             "does not have an associated recording id.")
+                             "does not have an associated recording id in memory."
+                             "maybe it was interrupted?")
                         )
 
                 case "CallTransferFailed":
