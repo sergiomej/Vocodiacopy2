@@ -81,7 +81,7 @@ MARIADB_CLIENT.connect()
 # This method is safe to called in a parallel thread because the MARIADB_CLIENT is using a connection pool
 # that is safe-threaded.
 def async_db_recording_status(
-    correlation_id: str, server_call_id: str, recording_id: str, status: str
+    current_correlation_id: str, current_server_call_id: str, current_recording_id: str, status: str
 ) -> None:
     SQL_QUERY = (
         "INSERT INTO recordings(correlation_id, server_call_id, recording_id, status) "
@@ -89,12 +89,14 @@ def async_db_recording_status(
         "ON DUPLICATE KEY UPDATE status=%s"
     )
 
+    logger.info("Inserting recording information into relational DB.")
+
     MARIADB_CLIENT.execute_query(
         SQL_QUERY,
         (
-            correlation_id,
-            server_call_id,
-            recording_id,
+            current_correlation_id,
+            current_server_call_id,
+            current_recording_id,
             status,
             status,
         ),
@@ -213,6 +215,19 @@ def handle_callback(contextId):
 
                     logger.info(f"primer correlation_id: {correlation_id}")
 
+                    # We push the tracking to a separate process. We don't need to wait for it
+                    # to finish, hence the lack of `.join()` calls.
+                    track_recording = Thread(
+                        target=async_db_recording_status,
+                        args=(
+                            correlation_id,
+                            server_call_id,
+                            recording_response.recording_id,
+                            "started",
+                        ),
+                    )
+                    track_recording.start()
+
                     action_proc = ActionProcessor(
                         logger=logger,
                         call_connection_id=call_connection_id,
@@ -314,6 +329,7 @@ def handle_callback(contextId):
                 case "CallEnded":
                     # The call has finished
                     server_call_id = event.data["serverCallId"]
+                    correlation_id = event.data["operationContext"],
                     recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id)
 
                     if record_to_stop:
@@ -328,6 +344,19 @@ def handle_callback(contextId):
                         logger.info(f"Stopped recording with ID: {recording_id_to_stop}")
 
                         IN_MEM_STATE_CLIENT.delete(server_call_id)
+
+                        # We push the tracking to a separate process. We don't need to wait for it
+                        # to finish, hence the lack of `.join()` calls.
+                        track_recording = Thread(
+                            target=async_db_recording_status,
+                            args=(
+                                correlation_id,
+                                server_call_id,
+                                recording_response.recording_id,
+                                "stopped",
+                            ),
+                        )
+                        track_recording.start()
                     else:
                         logger.error(
                             (f"The call with serverCallId: {server_call_id} "
