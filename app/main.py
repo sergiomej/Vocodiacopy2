@@ -16,7 +16,8 @@ from azure.communication.callautomation import (
     RecordingChannel,
     RecordingContent,
     RecordingFormat,
-    RecordingProperties
+    RecordingProperties,
+    ServerCallLocator
 )
 
 from azure.core.messaging import CloudEvent
@@ -148,10 +149,14 @@ def handle_callback(contextId):
                 case "CallConnected":
                     # Call connected
 
+                    logger.info(
+                        f"Call connected. Starting recording for serverCallId {server_call_id}"
+                    )
+
                     recording_response: RecordingProperties = (
                         call_automation_client.start_recording(
-                            call_locator=server_call_id,
-                            recording_content_type=RecordingContentType.Audio,
+                            call_locator=ServerCallLocator(server_call_id),
+                            recording_content_type=RecordingContent.Audio,
                             recording_channel_type=RecordingChannel.Unmixed,
                             recording_format_type=RecordingFormat.Wav,
                             recording_storage=AzureBlobContainerRecordingStorage(
@@ -160,9 +165,11 @@ def handle_callback(contextId):
                         )
                     )
 
+                    logger.info(f"Started recording with ID: {recording_response.recording_id}")
+
                     # We keep a common state for all the recordings that are associated to a
                     # ServerCallId. This key, in theory, is unique per _phone call_.
-                    IN_MEM_STATE_CLIENT.set(server_call_id, recording_response)
+                    IN_MEM_STATE_CLIENT.set(server_call_id, recording_response.recording_id)
 
                     disa = DisaConnection.call_first_url(
                         logger=logger, did=did, caller_id=caller_id
@@ -274,7 +281,7 @@ def handle_callback(contextId):
                 case "CallEnded":
                     # The call has finished
                     server_call_id = event.data["serverCallId"]
-                    recording_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id)
+                    recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id)
 
                     if record_to_stop:
                         logger.info(
@@ -282,8 +289,10 @@ def handle_callback(contextId):
                         )
 
                         call_automation_client.stop_recording(
-                            recording_id=recording_to_stop.recording_id
+                            recording_id=recording_id_to_stop.decode('utf-8')
                         )
+
+                        logger.info(f"Stopped recording with ID: {recording_id_to_stop}")
 
                         IN_MEM_STATE_CLIENT.delete(server_call_id)
                     else:
