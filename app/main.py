@@ -241,24 +241,40 @@ def handle_callback(contextId):
                     continue
                 case "PlayCompleted":
                     # Audio provided to call played correctly
-                    continue
+                    action = ""
+                    logger.info(f"PlayCompleted: [{event.data}]")
 
-                    # TODO: Be creative!
-                    # context = event.data['operationContext']
-                    # if context.lower() == TRANSFER_FAILED_CONTEXT.lower() or context.lower() == GOODBYE_CONTEXT.lower():
-                    #     handle_hangup(call_connection_id)
-                    # # Accepted
-                    # elif context.lower() == CONNECT_AGENT_CONTEXT.lower():
-                    #     if not AGENT_PHONE_NUMBER or AGENT_PHONE_NUMBER.isspace():
-                    #         logger.info(f"Agent phone number is empty")
-                    #         handle_play(call_connection_id=call_connection_id, text_to_play=AGENT_PHONE_NUMBER_EMPTY_PROMPT)
-                    #     else:
-                    #         logger.info(f"Initializing the Call transfer...")
-                    #         transfer_destination = PhoneNumberIdentifier(AGENT_PHONE_NUMBER)
-                    #         call_connection_client = call_automation_client.get_call_connection(
-                    #             call_connection_id=call_connection_id)
-                    #         call_connection_client.transfer_call_to_participant(target_participant=transfer_destination)
-                    #         logger.info(f"Transfer call initiated: {context}")
+                    context = event.data['operationContext']
+                    part = context.split('/', 1)
+
+                    if len(part) > 1:
+                        correlation_id = part[0]
+                        action = part[1]
+
+                    if action == "50":
+                        disa_response = asyncio.run(
+                            DisaConnection.run_disa_socket(
+                                correlation_id=correlation_id,
+                                message="",
+                            )
+                        )
+
+                        disa_response = json.loads(disa_response)
+
+                        logger.info(f"Response from disa: {disa_response}")
+
+                        correlation_id = disa_response["CorrelationId"]
+
+                        action_proc = ActionProcessor(
+                            logger=logging,
+                            call_connection_id=call_connection_id,
+                            caller_id=caller_id,
+                            call_automation_client=call_automation_client,
+                            transfer_agent="",
+                            correlation_id=correlation_id,
+                        )
+                        action_proc.process(disa_response["PlayBackAssets"])
+
                 case "PlayCanceled":
                     # Request to cancel a play worked
                     continue
