@@ -5,4 +5,5 @@ openai==0.28.1
 azure-core
 websockets
 pymemcache==4.0.0
+pymysql
 pytest
