@@ -3,11 +3,13 @@ import sys
 import logging
 import asyncio
 
+from threading import Thread
 from urllib.parse import urlencode
 from azure.eventgrid import EventGridEvent, SystemEventNames
 from flask import Flask, Response, request, json
 from util.disa_connection import DisaConnection
 from util.action_processor import ActionProcessor
+from db.mariadbconn import MariaDBConnection
 
 from azure.communication.callautomation import (
     AzureBlobContainerRecordingStorage,
@@ -67,6 +69,37 @@ logger.addHandler(file_handler)
 
 # max_pool_size should be at least half the number of workers plus 1 and less than Max memcached connections - 1.
 IN_MEM_STATE_CLIENT = PooledClient("127.0.0.1", max_pool_size=5)
+
+# Database Client
+# Pool size should be at least half of the number of workers plus 1 and less than Max DB connections - 1.
+MARIADB_CLIENT = MariaDBConnection(
+    host="172.210.60.9", user="root", database="events", password="maria123", pool_size=5
+)
+MARIADB_CLIENT.connect()
+
+
+# This method is safe to called in a parallel thread because the MARIADB_CLIENT is using a connection pool
+# that is safe-threaded.
+def async_db_recording_status(
+    correlation_id: str, server_call_id: str, recording_id: str, status: str
+) -> None:
+    SQL_QUERY = (
+        "INSERT INTO recordings(correlation_id, server_call_id, recording_id, status) "
+        "VALUES (%s, %s, %s, %s) "
+        "ON DUPLICATE KEY UPDATE status=%s"
+    )
+
+    MARIADB_CLIENT.execute_query(
+        SQL_QUERY,
+        (
+            correlation_id,
+            server_call_id,
+            recording_id,
+            status,
+            status,
+        ),
+    )
+
 
 @app.route("/api/incomingCall", methods=['POST'])
 def incoming_call_handler():
