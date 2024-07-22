@@ -1,7 +1,7 @@
 from mariadbconn import MariaDBConnection
 import datetime
 
-db = MariaDBConnection(host="172.210.60.9", user='root', database='events', password="maria123")
+db = MariaDBConnection(host="172.210.60.9", user='root', database='events', password="maria123", pool_size=1)
 db.connect()
 
 # Example query to get MariaDB version

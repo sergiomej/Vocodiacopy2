@@ -6,7 +6,7 @@ class MariaDBConnection:
     A class to manage a connection to a MariaDB database using PyMySQL.
     """
 
-    def __init__(self, host, user, password, database):
+    def __init__(self, host, user, password, database, pool_size=5):
         """
         Initializes the MariaDBConnection class with connection parameters.
 
@@ -15,6 +15,7 @@ class MariaDBConnection:
             user (str): The username for the MariaDB connection.
             password (str): The password for the MariaDB connection.
             database (str): The name of the database to connect to.
+            pool_size (int): The number of available connections in a pool. Defaults to 5.
         """
         self.host = host
         self.user = user
@@ -22,6 +23,7 @@ class MariaDBConnection:
         self.database = database
         self.connection = None
         self.cursor = None
+        self.pool_size = pool_size
 
     def connect(self):
         """
