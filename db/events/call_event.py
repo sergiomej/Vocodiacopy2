@@ -11,6 +11,7 @@ class CallEvent:
                  end_at: str,
                  action: str,
                  data: str):
+        self.id = str(uuid.uuid4())
         self.correlation_id = correlation_id
         self.server_call_id = server_call_id
         self.phone = phone
@@ -21,7 +22,7 @@ class CallEvent:
 
     def to_dict(self):
         return {
-            'id': str(uuid.uuid4()),
+            'id': self.id,
             'correlation_id': self.correlation_id,
             'server_call_id': self.server_call_id,
             'phone': self.phone,
