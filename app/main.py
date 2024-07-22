@@ -22,6 +22,7 @@ from azure.communication.callautomation import (
 
 from azure.core.messaging import CloudEvent
 from pymemcache.client.base import PooledClient
+from util.logger_manager import LoggerManager
 
 # Your ACS resource connection string
 ACS_CONNECTION_STRING = "endpoint=https://communication-disa-test.unitedstates.communication.azure.com/;accesskey=o4eO9kiaTeFSCGX1ka7h5HNbGdTqVQH0sFLSKQWblmtkW81zjn86JQQJ99AFACULyCphSYATAAAAAZCSFls1"
@@ -52,18 +53,7 @@ app = Flask(__name__)
 
 correlation_id = ""
 
-logger = logging.getLogger('mi_logger')
-logger.setLevel(logging.DEBUG)
-
-stream_handler = logging.StreamHandler()
-stream_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-stream_handler.setFormatter(stream_formatter)
-logger.addHandler(stream_handler)
-
-file_handler = logging.FileHandler('call_log.log')
-file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(file_formatter)
-logger.addHandler(file_handler)
+logger = LoggerManager(logger_name="switch_logger", log_file="/var/log/call_log.log").handler()    #check call and import logging
 
 # max_pool_size should be at least half the number of workers plus 1 and less than Max memcached connections - 1.
 IN_MEM_STATE_CLIENT = PooledClient("127.0.0.1", max_pool_size=5)
