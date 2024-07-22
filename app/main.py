@@ -290,15 +290,8 @@ def handle_callback(contextId):
                     recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id).decode('utf-8')
 
                     if recording_id_to_stop:
-                        logger.info(
-                            f"Call interrupted. Stopping recording for serverCallId: {server_call_id}"
-                        )
-
-                        call_automation_client.stop_recording(
-                            recording_id=recording_id_to_stop
-                        )
-
-                        logger.info(f"Stopped recording with ID: {recording_id_to_stop}")
+                        logger.info(f"Call interrupted for serverCallId: {server_call_id}")
+                        logger.info(f"Recording stopped automatically with ID: {recording_id_to_stop}")
 
                         IN_MEM_STATE_CLIENT.delete(server_call_id)
 
