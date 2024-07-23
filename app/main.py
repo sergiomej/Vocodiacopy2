@@ -465,7 +465,7 @@ def handle_callback(contextId):
                         action_proc.handle_recognize(caller_id, call_connection_id)
                         max_retry -= 1
                     else:
-                        action_proc.handle_play(call_connection_id, GOODBYE_PROMPT)
+                        action_proc.handle_play_text(call_connection_id=call_connection_id, text=GOODBYE_PROMPT)
                 case "AddParticipanFailed":
                     # Added participant failed!
                     continue
