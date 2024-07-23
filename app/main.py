@@ -58,7 +58,7 @@ correlation_id = ""
 logger = LoggerManager(logger_name="switch_logger", log_file="/var/log/call_log.log").handler()    #check call and import logging
 
 # max_pool_size should be at least half the number of workers plus 1 and less than Max memcached connections - 1.
-IN_MEM_STATE_CLIENT = PooledClient("127.0.0.1", max_pool_size=5)
+IN_MEM_STATE_CLIENT = PooledClient("172.17.0.1", max_pool_size=5)
 
 # Database Client
 # Pool size should be at least half of the number of workers plus 1 and less than Max DB connections - 1.
