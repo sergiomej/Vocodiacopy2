@@ -9,6 +9,8 @@ from azure.eventgrid import EventGridEvent, SystemEventNames
 from flask import Flask, Response, request, json
 from util.disa_connection import DisaConnection
 from util.action_processor import ActionProcessor
+from db.cosmosdbconn import CosmosDBConnection
+from db.events.call_event import CallEvent
 from db.mariadbconn import MariaDBConnection
 
 from azure.communication.callautomation import (
@@ -55,7 +57,14 @@ app = Flask(__name__)
 
 correlation_id = ""
 
-logger = LoggerManager(logger_name="switch_logger", log_file="/var/log/call_log.log").handler()    #check call and import logging
+logger = LoggerManager(logger_name="switch_logger",
+                       log_file="/var/log/call_log.log").handler()  # check call and import logging
+
+cosmos_db = CosmosDBConnection(logger=logger, endpoint="https://milky-way-calling.documents.azure.com:443/",
+                               key="n07EmQti8ppFtoPTYzGxq9MIiV0mgYTiopfJxZneELrFWH5l891wO8CSlPyhSf45LIMO2ZusakjYACDbEv9elA==",
+                               database_name="switchdb_dev", container_name="call_events")
+
+cosmos_db.connect()
 
 # max_pool_size should be at least half the number of workers plus 1 and less than Max memcached connections - 1.
 IN_MEM_STATE_CLIENT = PooledClient("127.0.0.1", max_pool_size=5)
@@ -105,7 +114,7 @@ def incoming_call_handler():
             return Response(response=json.dumps(validation_response), status=200)
         elif event.event_type == "Microsoft.Communication.IncomingCall":
             logger.info("Incoming call received: data=%s",
-                         event.data)
+                        event.data)
 
             if event.data['from']['kind'] == "phoneNumber":
                 caller_id = event.data['from']["phoneNumber"]["value"]
@@ -113,7 +122,7 @@ def incoming_call_handler():
                 caller_id = event.data['from']['rawId']
 
             logger.info("incoming call handler caller id: %s",
-                         caller_id)
+                        caller_id)
 
             if event.data['to']['kind'] == "phoneNumber":
                 did = event.data['to']["phoneNumber"]["value"]
@@ -121,10 +130,10 @@ def incoming_call_handler():
                 did = event.data['to']['rawId']
 
             logger.info("incoming call handler caller id: %s",
-                         caller_id)
+                        caller_id)
 
             logger.info("incoming call handler did: %s",
-                         did)
+                        did)
 
             incoming_call_context = event.data['incomingCallContext']
             guid = uuid.uuid4()
@@ -137,7 +146,7 @@ def incoming_call_handler():
                                                                     cognitive_services_endpoint=COGNITIVE_SERVICE_ENDPOINT,
                                                                     callback_url=callback_uri)
             logger.info("Answered call for connection id: %s",
-                         answer_call_result.call_connection_id)
+                        answer_call_result.call_connection_id)
             return Response(status=200)
 
 

@@ -2,8 +2,9 @@ Flask>=2.3.2
 azure-eventgrid==4.11.0
 azure-communication-callautomation==1.2.0
 openai==0.28.1
-azure-core
-websockets
+azure-core==1.30.2
+websockets==12.0
 pymemcache==4.0.0
-pymysql
-pytest
+pymysql==1.1.1
+pytest==8.3.1
+azure-cosmos==4.7.0
