@@ -442,7 +442,7 @@ def handle_callback(contextId):
                     reason_code = result_info["subCode"]
                     context = event.data["operationContext"]
 
-                    action_proc = ActionProcessor(call_connection_id=call_connection_id)
+                    action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id)
 
                     global max_retry
 
