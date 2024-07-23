@@ -80,7 +80,7 @@ MARIADB_CLIENT.connect()
 # This method is safe to called in a parallel thread because the MARIADB_CLIENT is using a connection pool
 # that is safe-threaded.
 def async_db_recording_status(
-    current_correlation_id: str, current_server_call_id: str, current_recording_id: str, status: str
+        current_correlation_id: str, current_server_call_id: str, current_recording_id: str, status: str
 ) -> None:
     SQL_QUERY = (
         "INSERT INTO recordings(correlation_id, server_call_id, recording_id, status) "
@@ -442,7 +442,8 @@ def handle_callback(contextId):
                     reason_code = result_info["subCode"]
                     context = event.data["operationContext"]
 
-                    action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id)
+                    action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id,
+                                                  call_automation_client=call_automation_client)
 
                     global max_retry
 
@@ -473,7 +474,8 @@ def handle_callback(contextId):
         logger.info(f"error in event handling [{ex}]")
         line = sys.exc_info()[-1].tb_lineno
         logger.error("Error in line #{} Msg: {}".format(line, ex))
-        action_proc = ActionProcessor(call_connection_id=call_connection_id)
+        action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id,
+                                      call_automation_client=call_automation_client)
         action_proc.handle_hangup()
         return Response(status=500)
 
