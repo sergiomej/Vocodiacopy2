@@ -80,26 +80,36 @@ MARIADB_CLIENT.connect()
 # This method is safe to called in a parallel thread because the MARIADB_CLIENT is using a connection pool
 # that is safe-threaded.
 def async_db_recording_status(
-        current_correlation_id: str, current_server_call_id: str, current_recording_id: str, status: str
+    azure_correlation_id: str,
+    current_server_call_id: str,
+    current_recording_id: str,
+    disa_correlation_id: str,
+    status: str,
 ) -> None:
+    required_fields = "azure_correlation_id, server_call_id, recording_id, status"
+
+    fields = required_fields
+    value_holders = "%s, %s, %s, %s"
+    base_params = (azure_correlation_id, current_server_call_id, current_recording_id, status)
+
+    if disa_correlation_id:
+        fields += ", disa_correlation_id"
+        value_holders += ", %s"
+        base_params += (
+            disa_correlation_id,
+            status,
+        )
+    else:
+        base_params += (status,)
+
     SQL_QUERY = (
-        "INSERT INTO recordings(correlation_id, server_call_id, recording_id, status) "
-        "VALUES (%s, %s, %s, %s) "
+        f"INSERT INTO recordings({fields}) VALUES ({value_holders}) "
         "ON DUPLICATE KEY UPDATE status=%s"
     )
 
     logger.info("Inserting recording information into relational DB.")
 
-    MARIADB_CLIENT.execute_query(
-        SQL_QUERY,
-        (
-            current_correlation_id,
-            current_server_call_id,
-            current_recording_id,
-            status,
-            status,
-        ),
-    )
+    MARIADB_CLIENT.execute_query(SQL_QUERY, base_params)
 
 
 @app.route("/api/incomingCall", methods=['POST'])
