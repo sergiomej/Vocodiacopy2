@@ -1,0 +1,25 @@
+trigger:
+- feature/dokerize
+
+pool:
+   vmImage: ubuntu-latest
+
+steps:
+- checkout: self
+  persistCredentials: true
+
+- script: |
+    echo "Running make dist"
+    make dist
+  displayName: 'Run make dist'
+
+- script: |
+    echo "Running make buildswitch-dev"
+    make buildswitch-dev
+  displayName: 'Run make buildswitch-dev'
+
+- script: |
+    echo "Running make switch-push-dev"
+    make switch-push-dev
+  displayName: 'Run make switch-push-dev'
+
