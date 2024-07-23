@@ -10,4 +10,4 @@ RUN sudo chmod -R 777 /var/log
 
 RUN cd ${DEPLOY_DIR}/find-links/
 
-RUN ${DEPLOY_DIR}/bin/pip install ${DEPLOY_DIR}/find-links/vocodiaswitchservices-1.0.0.tar.gz
+RUN ${DEPLOY_DIR}/bin/pip install ${DEPLOY_DIR}/find-links/vocodiaSwitchServices-1.0.0.tar.gz
