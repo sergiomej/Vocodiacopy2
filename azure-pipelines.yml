@@ -9,11 +9,6 @@ steps:
   persistCredentials: true
 
 - script: |
-    echo "Switching to branch feature/dokerize"
-    git checkout feature/dokerize
-  displayName: 'Checkout feature/dokerize branch'
-
-- script: |
     echo "Running make dist"
     make dist
   displayName: 'Run make dist'
