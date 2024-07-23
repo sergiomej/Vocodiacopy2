@@ -220,18 +220,20 @@ def handle_callback(contextId):
                     )
 
                     transfer_agent = disa.get("TransferDestination", "")
-                    correlation_id = disa.get("CorrelationId", "")
+                    disa_correlation_id = disa.get("CorrelationId", "")
+                    azure_correlation_id = event.data['correlationId']
 
-                    logger.info(f"primer correlation_id: {correlation_id}")
+                    logger.info(f"DISA correlation_id: {disa_correlation_id}")
 
                     # We push the tracking to a separate process. We don't need to wait for it
                     # to finish, hence the lack of `.join()` calls.
                     track_recording = Thread(
                         target=async_db_recording_status,
                         args=(
-                            correlation_id,
+                            azure_correlation_id,
                             server_call_id,
                             recording_response.recording_id,
+                            disa_correlation_id,
                             "started",
                         ),
                     )
@@ -243,7 +245,7 @@ def handle_callback(contextId):
                         caller_id=caller_id,
                         call_automation_client=call_automation_client,
                         transfer_agent=transfer_agent,
-                        correlation_id=correlation_id,
+                        correlation_id=disa_correlation_id,
                     )
 
                     action_proc.process(disa["PlayBackAssets"])
@@ -295,7 +297,7 @@ def handle_callback(contextId):
                     # Call disconnected
                     # The call was finished in a non expected manner.
                     server_call_id = event.data["serverCallId"]
-                    correlation_id = event.data["correlationId"],
+                    azure_correlation_id = event.data["correlationId"],
                     recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id).decode('utf-8')
 
                     if recording_id_to_stop:
@@ -309,9 +311,10 @@ def handle_callback(contextId):
                         track_recording = Thread(
                             target=async_db_recording_status,
                             args=(
-                                correlation_id,
+                                azure_correlation_id,
                                 server_call_id,
                                 recording_id_to_stop,
+                                None,
                                 "disconnected",
                             ),
                         )
@@ -382,7 +385,7 @@ def handle_callback(contextId):
                 case "CallEnded":
                     # The call has finished
                     server_call_id = event.data["serverCallId"]
-                    correlation_id = event.data["operationContext"],
+                    azure_correlation_id = event.data["correlationId"]
                     recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id).decode('utf-8')
 
                     if recording_id_to_stop:
@@ -403,9 +406,10 @@ def handle_callback(contextId):
                         track_recording = Thread(
                             target=async_db_recording_status,
                             args=(
-                                correlation_id,
+                                azure_correlation_id,
                                 server_call_id,
                                 recording_response.recording_id,
+                                None,
                                 "stopped",
                             ),
                         )
