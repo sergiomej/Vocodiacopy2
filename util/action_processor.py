@@ -12,7 +12,7 @@ from azure.communication.callautomation import (
 
 class ActionProcessor:
 
-    def __init__(self, logger, call_connection_id, caller_id, call_automation_client, transfer_agent="",
+    def __init__(self, logger, call_connection_id, caller_id=None, call_automation_client=None, transfer_agent="",
                  correlation_id=""):
         self.call_connection_id = call_connection_id
         self.logger = logger
@@ -37,6 +37,12 @@ class ActionProcessor:
                         self.handle_recognize(
                             self.caller_id, self.call_connection_id,
                             context=self.correlation_id, url=url_file)
+                    case 3:
+                        url_file = self.parse_url(asset["RecordingUrl"])
+                        duration = asset["Duration_MS"]
+                        self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
+                        time.sleep(duration / 1000.0)
+                        self.handle_hangup()
                     case 50:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
@@ -48,11 +54,12 @@ class ActionProcessor:
                         self.transfer_call_to_agent(call_connection_id=self.call_connection_id,
                                                     agent_phone_number=self.transfer_agent)
                     case _:
-                        self.logger.info("No valid action")
+                        self.logger.info(f"No valid action [{asset}]")
         except Exception as e:
             self.logger.error(e)
             line = sys.exc_info()[-1].tb_lineno
             self.logger.error("Error in line #{} Msg: {}".format(line, e))
+            self.handle_hangup()
 
     def handle_recognize(self, callerId, call_connection_id, context="", url=""):
         self.logger.info(f"URL to play: {url}")
@@ -68,7 +75,7 @@ class ActionProcessor:
 
         self.logger.info("handle_recognize : data=%s", recognize_result)
 
-    def handle_play(self, call_connection_id, url, context, action=None):
+    def handle_play(self, call_connection_id, url=None, context=None, action=None):
         self.logger.info(f"URL to play: {url}")
         self.logger.info(f"Action: {action}")
 
@@ -81,8 +88,8 @@ class ActionProcessor:
         self.call_automation_client.get_call_connection(call_connection_id).play_media_to_all(play_source,
                                                                                               operation_context=operation_context)
 
-    def handle_hangup(self, call_connection_id):
-        self.call_automation_client.get_call_connection(call_connection_id).hang_up(is_for_everyone=True)
+    def handle_hangup(self):
+        self.call_automation_client.get_call_connection(self.call_connection_id).hang_up(is_for_everyone=True)
 
     def transfer_call_to_agent(self, call_connection_id, agent_phone_number):
         try:
@@ -93,7 +100,8 @@ class ActionProcessor:
                 transfer_destination = PhoneNumberIdentifier(agent_phone_number)
                 call_connection_client = self.call_automation_client.get_call_connection(
                     call_connection_id=call_connection_id)
-                call_connection_client.transfer_call_to_participant(target_participant=transfer_destination)
+                call_connection_client.transfer_call_to_participant(target_participant=transfer_destination,
+                                                                    operation_context=self.correlation_id)
                 self.logger.info(f"Transfer call initiated to agent {agent_phone_number}")
         except Exception as ex:
             self.logger.error(f"Error transferring call to agent: {ex}")
