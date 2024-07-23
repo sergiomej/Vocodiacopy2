@@ -412,32 +412,45 @@ def handle_callback(contextId):
                     logger.error(
                         f"Call transfer failed event received for connection id: {call_connection_id}"
                     )
-                    resultInformation = event.data["resultInformation"]
-                    sub_code = resultInformation["subCode"]
+                    result_information = event.data["resultInformation"]
+                    correlation_id = event.data["operationContext"]
+                    sub_code = result_information["subCode"]
                     # check for message extraction and code
                     logger.error(
                         f"Encountered error during call transfer, message=, code=, subCode={sub_code}"
                     )
-                    handle_play(
+
+                    action_proc = ActionProcessor(
+                        logger=logging,
                         call_connection_id=call_connection_id,
-                        text_to_play=CALLTRANSFER_FAILURE_PROMPT,
-                        context=TRANSFER_FAILED_CONTEXT,
+                        caller_id=caller_id,
+                        call_automation_client=call_automation_client,
+                        transfer_agent="",
+                        correlation_id=correlation_id,
                     )
+
+                    action_proc.handle_play(
+                        call_connection_id=call_connection_id,
+                        text_to_play="Transfer failed",
+                        context=""
+                    )
+
+                    action_proc.handle_hangup()
                 case "RecognizeFailed":
                     # User input couldn't be recognised.
                     result_info = event.data["resultInformation"]
                     reason_code = result_info["subCode"]
                     context = event.data["operationContext"]
 
+                    action_proc = ActionProcessor(call_connection_id=call_connection_id)
+
                     global max_retry
 
-                    # Waiting for answer reached timeout, so we check if we can retry
-                    # more reason codes: https://learn.microsoft.com/en-us/azure/communication-services/how-tos/call-automation/recognize-action?pivots=programming-language-python#event-codes
                     if reason_code == 8510 and 0 < max_retry:
-                        handle_recognize(TIMEOUT_SILENCE_PROMPT, caller_id, call_connection_id)
+                        action_proc.handle_recognize(caller_id, call_connection_id)
                         max_retry -= 1
                     else:
-                        handle_play(call_connection_id, GOODBYE_PROMPT, GOODBYE_CONTEXT)
+                        action_proc.handle_play(call_connection_id, GOODBYE_PROMPT)
                 case "AddParticipanFailed":
                     # Added participant failed!
                     continue
@@ -460,6 +473,8 @@ def handle_callback(contextId):
         logger.info(f"error in event handling [{ex}]")
         line = sys.exc_info()[-1].tb_lineno
         logger.error("Error in line #{} Msg: {}".format(line, ex))
+        action_proc = ActionProcessor(call_connection_id=call_connection_id)
+        action_proc.handle_hangup()
         return Response(status=500)
 
 
