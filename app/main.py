@@ -95,12 +95,12 @@ def async_db_recording_status(
     if disa_correlation_id:
         fields += ", disa_correlation_id"
         value_holders += ", %s"
-        base_params += (
+        base_params = base_params + (
             disa_correlation_id,
             status,
         )
     else:
-        base_params += (status,)
+        base_params = base_params + (status,)
 
     SQL_QUERY = (
         f"INSERT INTO recordings({fields}) VALUES ({value_holders}) "
@@ -297,7 +297,7 @@ def handle_callback(contextId):
                     # Call disconnected
                     # The call was finished in a non expected manner.
                     server_call_id = event.data["serverCallId"]
-                    azure_correlation_id = event.data["correlationId"],
+                    azure_correlation_id = event.data["correlationId"]
                     recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id).decode('utf-8')
 
                     if recording_id_to_stop:
