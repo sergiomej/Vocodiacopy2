@@ -1,12 +1,10 @@
 import sys
 import time
-import asyncio
 
 from html import unescape
-from util.disa_connection import DisaConnection
 from azure.communication.callautomation import (
     PhoneNumberIdentifier,
-    RecognizeInputType, FileSource
+    RecognizeInputType, FileSource, TextSource
 )
 
 
@@ -88,6 +86,14 @@ class ActionProcessor:
         play_source = FileSource(url=url)
         self.call_automation_client.get_call_connection(call_connection_id).play_media_to_all(play_source,
                                                                                               operation_context=operation_context)
+
+    def handle_play_text(self, call_connection_id, text=None, context=None, action=None):
+        self.logger.info(f"Text to play: {text}")
+        self.logger.info(f"Action: {action}")
+
+        play_source = TextSource(text=text)
+        self.call_automation_client.get_call_connection(call_connection_id).play_media_to_all(play_source,
+                                                                                              operation_context=context)
 
     def handle_hangup(self):
         self.call_automation_client.get_call_connection(self.call_connection_id).hang_up(is_for_everyone=True)

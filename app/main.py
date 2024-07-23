@@ -435,7 +435,7 @@ def handle_callback(contextId):
                     )
 
                     action_proc = ActionProcessor(
-                        logger=logging,
+                        logger=logger,
                         call_connection_id=call_connection_id,
                         caller_id=caller_id,
                         call_automation_client=call_automation_client,
@@ -443,10 +443,10 @@ def handle_callback(contextId):
                         correlation_id=correlation_id,
                     )
 
-                    action_proc.handle_play(
+                    action_proc.handle_play_text(
                         call_connection_id=call_connection_id,
-                        text_to_play="Transfer failed",
-                        context=""
+                        text="Transfer failed",
+                        context=correlation_id
                     )
 
                     action_proc.handle_hangup()
