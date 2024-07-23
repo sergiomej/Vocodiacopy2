@@ -59,10 +59,12 @@ class ActionProcessor:
             self.logger.error("Error in line #{} Msg: {}".format(line, e))
             self.handle_hangup()
 
-    def handle_recognize(self, callerId, call_connection_id, context="", url=""):
+    def handle_recognize(self, callerId, call_connection_id, context="", url=None):
         self.logger.info(f"URL to play: {url}")
+        play_source = None
 
-        play_source = FileSource(url=url)
+        if url:
+            play_source = FileSource(url=url)
 
         recognize_result = self.call_automation_client.get_call_connection(call_connection_id).start_recognizing_media(
             input_type=RecognizeInputType.SPEECH,

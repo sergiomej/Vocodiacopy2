@@ -80,11 +80,11 @@ MARIADB_CLIENT.connect()
 # This method is safe to called in a parallel thread because the MARIADB_CLIENT is using a connection pool
 # that is safe-threaded.
 def async_db_recording_status(
-    azure_correlation_id: str,
-    current_server_call_id: str,
-    current_recording_id: str,
-    disa_correlation_id: str,
-    status: str,
+        azure_correlation_id: str,
+        current_server_call_id: str,
+        current_recording_id: str,
+        disa_correlation_id: str,
+        status: str,
 ) -> None:
     required_fields = "azure_correlation_id, server_call_id, recording_id, status"
 
@@ -462,10 +462,12 @@ def handle_callback(contextId):
                     global max_retry
 
                     if reason_code == 8510 and 0 < max_retry:
-                        action_proc.handle_recognize(caller_id, call_connection_id)
+                        action_proc.handle_recognize(callerId=caller_id, call_connection_id=call_connection_id,
+                                                     context=context)
                         max_retry -= 1
                     else:
-                        action_proc.handle_play_text(call_connection_id=call_connection_id, text=GOODBYE_PROMPT)
+                        action_proc.handle_play_text(call_connection_id=call_connection_id, text=GOODBYE_PROMPT,
+                                                     context=context)
                 case "AddParticipanFailed":
                     # Added participant failed!
                     continue
