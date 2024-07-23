@@ -69,8 +69,9 @@ class ActionProcessor:
         recognize_result = self.call_automation_client.get_call_connection(call_connection_id).start_recognizing_media(
             input_type=RecognizeInputType.SPEECH,
             target_participant=PhoneNumberIdentifier(callerId),
-            end_silence_timeout=1,
+            end_silence_timeout=1.5,
             play_prompt=play_source,
+            interrupt_prompt=True,
             operation_context=context)
 
         self.logger.info("handle_recognize : data=%s", recognize_result)
