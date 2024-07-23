@@ -15,6 +15,7 @@ steps:
 
 - script: |
     echo "Running make buildswitch-dev"
+    ls dist/
     make buildswitch-dev
   displayName: 'Run make buildswitch-dev'
 
