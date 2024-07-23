@@ -6,6 +6,7 @@ services:
     entrypoint: ["/bin/bash", "-c", "/apps/vocodia-dev/bin/switch.sh && tail -f /dev/stdout"]
     ports:
       - "8080:8080"
+      - "11211:11211"
     sysctls:
       - net.core.somaxconn=4096
     environment:
