@@ -11,7 +11,7 @@ steps:
 - script: |
     echo "Running make dist"
     make dist
-    ls
+    ls dist
     make buildswitch-dev
     make switch-push-dev
   displayName: 'Run make dist'
