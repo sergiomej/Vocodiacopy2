@@ -1,0 +1,60 @@
+FROM --platform=linux/amd64 centos:centos7.9.2009
+
+#############################################################################################################
+# Base OS install to Vocodia Switch
+# Vocodia 2024
+#############################################################################################################
+
+# TODO: Create Docker hub account
+
+ENV DEPLOY_DIR=/apps/vocodia-dev
+RUN mkdir -p /var/log/gunicorn
+RUN chmod -R 777 /var/log
+
+ARG MINICONDA_URL=https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+ARG CONDA_VERSION=latest
+
+ENV LANG=en_US.UTF-8
+
+RUN sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo
+RUN sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*.repo
+RUN sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*.repo
+
+RUN yum -y update \
+ && yum install -y epel-release \
+ && yum install -y wget bzip2 openssl-devel rsyslog sudo nc telnet gcc \
+ && yum groupinstall -y 'Development Tools' \
+ && yum install -y swig emacs vim gcc python-devel \
+ && yum install -y nc \
+ && yum clean all
+
+RUN groupadd -g 2034 vocodia-dev
+RUN useradd -u 2034 -g 2034 -c "vocodia-dev user" -s /bin/bash -m vocodia-dev
+RUN echo '%vocodia-dev ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+RUN echo "vocodia-dev:vocodia-dev" | chpasswd
+
+RUN bash -c "mkdir `dirname ${DEPLOY_DIR}`"
+RUN bash -c "chown vocodia-dev:vocodia-dev `dirname ${DEPLOY_DIR}`"
+
+USER vocodia-dev
+
+RUN wget --quiet ${MINICONDA_URL} -O /tmp/anaconda.sh && \
+/bin/bash /tmp/anaconda.sh -b -p ${DEPLOY_DIR} && \
+rm /tmp/anaconda.sh
+
+RUN ${DEPLOY_DIR}/bin/conda config --set channel_priority false
+
+RUN echo "channels:                                     " > ~/.condarc  \
+ && echo "  - conda-forge                               " >> ~/.condarc \
+ && echo "  - defaults                                  " >> ~/.condarc \
+ && echo "                                              " >> ~/.condarc \
+ && echo "binstar_upload: false                         " >> ~/.condarc \
+ && echo "ssl_verify: false                             " >> ~/.condarc \
+ && echo "report_errors: false                          " >> ~/.condarc \
+ && echo "#anaconda_upload: false                       " >> ~/.condarc
+
+#RUN ${DEPLOY_DIR}/bin/pip install uwsgi
+RUN ${DEPLOY_DIR}/bin/pip install gunicorn
+
+RUN mkdir -p ${DEPLOY_DIR}/find-links/
+RUN mkdir ~/.pip

@@ -1,0 +1,13 @@
+FROM thedarkside362/vocodiaswitchbase:1.0
+
+USER vocodia-dev
+
+#Copy dist and external libs dev deploy
+COPY dist/ ${DEPLOY_DIR}/find-links/
+RUN ls -ld /var/log
+
+RUN sudo chmod -R 777 /var/log
+
+RUN cd ${DEPLOY_DIR}/find-links/
+
+RUN ${DEPLOY_DIR}/bin/pip install ${DEPLOY_DIR}/find-links/vocodiaswitchservices-1.0.0.tar.gz
