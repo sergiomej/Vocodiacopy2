@@ -3,6 +3,7 @@ import sys
 import logging
 import asyncio
 
+from threading import Thread
 from urllib.parse import urlencode
 from azure.eventgrid import EventGridEvent, SystemEventNames
 from flask import Flask, Response, request, json
@@ -10,6 +11,7 @@ from util.disa_connection import DisaConnection
 from util.action_processor import ActionProcessor
 from db.cosmosdbconn import CosmosDBConnection
 from db.events.call_event import CallEvent
+from db.mariadbconn import MariaDBConnection
 
 from azure.communication.callautomation import (
     AzureBlobContainerRecordingStorage,
@@ -66,6 +68,38 @@ cosmos_db.connect()
 
 # max_pool_size should be at least half the number of workers plus 1 and less than Max memcached connections - 1.
 IN_MEM_STATE_CLIENT = PooledClient("127.0.0.1", max_pool_size=5)
+
+# Database Client
+# Pool size should be at least half of the number of workers plus 1 and less than Max DB connections - 1.
+MARIADB_CLIENT = MariaDBConnection(
+    host="172.210.60.9", user="root", database="events", password="maria123", pool_size=5
+)
+MARIADB_CLIENT.connect()
+
+
+# This method is safe to called in a parallel thread because the MARIADB_CLIENT is using a connection pool
+# that is safe-threaded.
+def async_db_recording_status(
+    current_correlation_id: str, current_server_call_id: str, current_recording_id: str, status: str
+) -> None:
+    SQL_QUERY = (
+        "INSERT INTO recordings(correlation_id, server_call_id, recording_id, status) "
+        "VALUES (%s, %s, %s, %s) "
+        "ON DUPLICATE KEY UPDATE status=%s"
+    )
+
+    logger.info("Inserting recording information into relational DB.")
+
+    MARIADB_CLIENT.execute_query(
+        SQL_QUERY,
+        (
+            current_correlation_id,
+            current_server_call_id,
+            current_recording_id,
+            status,
+            status,
+        ),
+    )
 
 
 @app.route("/api/incomingCall", methods=['POST'])
@@ -180,6 +214,19 @@ def handle_callback(contextId):
 
                     logger.info(f"primer correlation_id: {correlation_id}")
 
+                    # We push the tracking to a separate process. We don't need to wait for it
+                    # to finish, hence the lack of `.join()` calls.
+                    track_recording = Thread(
+                        target=async_db_recording_status,
+                        args=(
+                            correlation_id,
+                            server_call_id,
+                            recording_response.recording_id,
+                            "started",
+                        ),
+                    )
+                    track_recording.start()
+
                     action_proc = ActionProcessor(
                         logger=logger,
                         call_connection_id=call_connection_id,
@@ -236,7 +283,35 @@ def handle_callback(contextId):
                             # Speech text didn't work???
                 case "CallDisconnected":
                     # Call disconnected
-                    continue
+                    # The call was finished in a non expected manner.
+                    server_call_id = event.data["serverCallId"]
+                    correlation_id = event.data["correlationId"],
+                    recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id).decode('utf-8')
+
+                    if recording_id_to_stop:
+                        logger.info(f"Call interrupted for serverCallId: {server_call_id}")
+                        logger.info(f"Recording stopped automatically with ID: {recording_id_to_stop}")
+
+                        IN_MEM_STATE_CLIENT.delete(server_call_id)
+
+                        # We push the tracking to a separate process. We don't need to wait for it
+                        # to finish, hence the lack of `.join()` calls.
+                        track_recording = Thread(
+                            target=async_db_recording_status,
+                            args=(
+                                correlation_id,
+                                server_call_id,
+                                recording_id_to_stop,
+                                "disconnected",
+                            ),
+                        )
+                        track_recording.start()
+                    else:
+                        logger.error(
+                            (f"The call with serverCallId: {server_call_id} "
+                             "does not have an associated recording id in memory.")
+                        )
+
                 case "AddParticipantSucceeded":
                     # Added participant to call - This is triggered when bot answer succeeded.
                     continue
@@ -251,24 +326,40 @@ def handle_callback(contextId):
                     continue
                 case "PlayCompleted":
                     # Audio provided to call played correctly
-                    continue
+                    action = ""
+                    logger.info(f"PlayCompleted: [{event.data}]")
 
-                    # TODO: Be creative!
-                    # context = event.data['operationContext']
-                    # if context.lower() == TRANSFER_FAILED_CONTEXT.lower() or context.lower() == GOODBYE_CONTEXT.lower():
-                    #     handle_hangup(call_connection_id)
-                    # # Accepted
-                    # elif context.lower() == CONNECT_AGENT_CONTEXT.lower():
-                    #     if not AGENT_PHONE_NUMBER or AGENT_PHONE_NUMBER.isspace():
-                    #         logger.info(f"Agent phone number is empty")
-                    #         handle_play(call_connection_id=call_connection_id, text_to_play=AGENT_PHONE_NUMBER_EMPTY_PROMPT)
-                    #     else:
-                    #         logger.info(f"Initializing the Call transfer...")
-                    #         transfer_destination = PhoneNumberIdentifier(AGENT_PHONE_NUMBER)
-                    #         call_connection_client = call_automation_client.get_call_connection(
-                    #             call_connection_id=call_connection_id)
-                    #         call_connection_client.transfer_call_to_participant(target_participant=transfer_destination)
-                    #         logger.info(f"Transfer call initiated: {context}")
+                    context = event.data['operationContext']
+                    part = context.split('/', 1)
+
+                    if len(part) > 1:
+                        correlation_id = part[0]
+                        action = part[1]
+
+                    if action == "50":
+                        disa_response = asyncio.run(
+                            DisaConnection.run_disa_socket(
+                                correlation_id=correlation_id,
+                                message="",
+                            )
+                        )
+
+                        disa_response = json.loads(disa_response)
+
+                        logger.info(f"Response from disa: {disa_response}")
+
+                        correlation_id = disa_response["CorrelationId"]
+
+                        action_proc = ActionProcessor(
+                            logger=logging,
+                            call_connection_id=call_connection_id,
+                            caller_id=caller_id,
+                            call_automation_client=call_automation_client,
+                            transfer_agent="",
+                            correlation_id=correlation_id,
+                        )
+                        action_proc.process(disa_response["PlayBackAssets"])
+
                 case "PlayCanceled":
                     # Request to cancel a play worked
                     continue
@@ -281,24 +372,39 @@ def handle_callback(contextId):
                 case "CallEnded":
                     # The call has finished
                     server_call_id = event.data["serverCallId"]
-                    recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id)
+                    correlation_id = event.data["operationContext"],
+                    recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id).decode('utf-8')
 
-                    if record_to_stop:
+                    if recording_id_to_stop:
                         logger.info(
                             f"The call has ended. Stopping recording for serverCallId: {server_call_id}"
                         )
 
                         call_automation_client.stop_recording(
-                            recording_id=recording_id_to_stop.decode('utf-8')
+                            recording_id=recording_id_to_stop
                         )
 
                         logger.info(f"Stopped recording with ID: {recording_id_to_stop}")
 
                         IN_MEM_STATE_CLIENT.delete(server_call_id)
+
+                        # We push the tracking to a separate process. We don't need to wait for it
+                        # to finish, hence the lack of `.join()` calls.
+                        track_recording = Thread(
+                            target=async_db_recording_status,
+                            args=(
+                                correlation_id,
+                                server_call_id,
+                                recording_response.recording_id,
+                                "stopped",
+                            ),
+                        )
+                        track_recording.start()
                     else:
                         logger.error(
                             (f"The call with serverCallId: {server_call_id} "
-                             "does not have an associated recording id.")
+                             "does not have an associated recording id in memory."
+                             "maybe it was interrupted?")
                         )
 
                 case "CallTransferFailed":
