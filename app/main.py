@@ -51,7 +51,7 @@ call_automation_client = CallAutomationClient.from_connection_string(ACS_CONNECT
 
 recording_id = None
 recording_chunks_location = []
-max_retry = 2
+max_retry = 1
 
 app = Flask(__name__)
 
