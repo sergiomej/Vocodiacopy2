@@ -1,7 +1,15 @@
 from mariadbconn import MariaDBConnection
+from dotenv import dotenv_values
 import datetime
 
-db = MariaDBConnection(host="172.210.60.9", user='root', database='events', password="maria123", pool_size=1)
+ENV_CONFIG = dotenv_values('.env.test')
+db = MariaDBConnection(
+        host=ENV_CONFIG["MARIADB_HOST"],
+        user=ENV_CONFIG["MARIADB_USER"],
+        database=ENV_CONFIG["MARIADB_DATABASE"],
+        password=ENV_CONFIG["MARIADB_PASS"],
+        pool_size=1
+)
 db.connect()
 
 # Example query to get MariaDB version

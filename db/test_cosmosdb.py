@@ -1,12 +1,18 @@
 from db.cosmosdbconn import CosmosDBConnection
 from datetime import datetime
 from db.events.call_event import CallEvent
+from dotenv import dotenv_values
+
+ENV_CONFIG = dotenv_values('env.test')
 
 
 def test_cosmosdb():
-    dbcosmos = CosmosDBConnection(endpoint="https://milky-way-calling.documents.azure.com:443/",
-                                  key="n07EmQti8ppFtoPTYzGxq9MIiV0mgYTiopfJxZneELrFWH5l891wO8CSlPyhSf45LIMO2ZusakjYACDbEv9elA==",
-                                  database_name="switchdb_dev", container_name="call_events")
+    dbcosmos = CosmosDBConnection(
+            endpoint=ENV_CONFIG["COSMOS_DB_ENDPOINT"]
+            key=ENV_CONFIG["COSMOS_DB_KEY"],
+            database_name=ENV_CONFIG["COSMOS_DB_DATABASE"],
+            container_name=ENV_CONFIG["COSMOS_DB_CONTAINER"]
+    )
 
     call_event = CallEvent(correlation_id="111",
                            server_call_id="123",
