@@ -226,7 +226,10 @@ def handle_callback(contextId):
                     IN_MEM_STATE_CLIENT.set(server_call_id, recording_response.recording_id)
 
                     disa = DisaConnection.call_first_url(
-                        logger=logger, did=did, caller_id=caller_id
+                        logger=logger,
+                        did=did,
+                        caller_id=caller_id,
+                        inbound_host=ENV_CONFIG["DISA_INBOUND_HOST"]
                     )
 
                     transfer_agent = disa.get("TransferDestination", "")
@@ -282,6 +285,7 @@ def handle_callback(contextId):
                                 DisaConnection.run_disa_socket(
                                     correlation_id=event.data["operationContext"],
                                     message=speech_text,
+                                    ws_uri=ENV_CONFIG["DISA_WS_URI"]
                                 )
                             )
 
@@ -364,6 +368,7 @@ def handle_callback(contextId):
                             DisaConnection.run_disa_socket(
                                 correlation_id=correlation_id,
                                 message="",
+                                ws_uri=ENV_CONFIG["DISA_WS_URI"]
                             )
                         )
 
