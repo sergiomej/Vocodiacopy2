@@ -159,11 +159,16 @@ def incoming_call_handler():
 
             logger.info("callback url: %s", callback_uri)
 
-            answer_call_result = call_automation_client.answer_call(incoming_call_context=incoming_call_context,
-                                                                    cognitive_services_endpoint=COGNITIVE_SERVICE_ENDPOINT,
-                                                                    callback_url=callback_uri)
-            logger.info("Answered call for connection id: %s",
-                        answer_call_result.call_connection_id)
+            answer_call_result = call_automation_client.answer_call(
+                incoming_call_context=incoming_call_context,
+                cognitive_services_endpoint=ENV_CONFIG["COGNITIVE_SERVICE_ENDPOINT"],
+                callback_url=callback_uri,
+            )
+
+            logger.info(
+                "Answered call for connection id: %s", answer_call_result.call_connection_id
+            )
+
             return Response(status=200)
 
 
