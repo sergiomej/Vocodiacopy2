@@ -11,12 +11,15 @@ from azure.communication.callautomation import (
     PhoneNumberIdentifier,
     RecognizeInputType,
     FileSource,
+CallAutomationClient,
     CommunicationIdentifier
 )
 
 COGNITIVE_SERVICE_ENDPOINT = "https://testaivocodia.cognitiveservices.azure.com/"
 CALLBACK_URI_HOST = "https://switch.ngrok.dev"
 CALLBACK_EVENTS_URI = CALLBACK_URI_HOST + "/api/callbacks"
+ACS_CONNECTION_STRING = "endpoint=https://communication-disa-test.unitedstates.communication.azure.com/;accesskey=o4eO9kiaTeFSCGX1ka7h5HNbGdTqVQH0sFLSKQWblmtkW81zjn86JQQJ99AFACULyCphSYATAAAAAZCSFls1"
+
 
 
 class ActionProcessor:
@@ -126,19 +129,21 @@ class ActionProcessor:
 
     def warm_transfer(self, call_connection_id, agent_phone_number, context):
         try:
+            call_automation_client_p = CallAutomationClient.from_connection_string(ACS_CONNECTION_STRING)
             transfer_destination = PhoneNumberIdentifier(self.caller_id)
 
             guid = uuid.uuid4()
             query_parameters = urlencode({"callerId": self.caller_id, "did": self.did})
             callback_uri = f"{CALLBACK_EVENTS_URI}/{guid}?{query_parameters}"
 
-            new_call_connection = self.call_automation_client.create_call(source_caller_id_number=transfer_destination,
+            new_call_connection = call_automation_client_p.create_call(source_caller_id_number=transfer_destination,
                                                                           target_participant=CommunicationIdentifier(
                                                                               agent_phone_number),
                                                                           operation_context=context,
                                                                           cognitive_services_endpoint=COGNITIVE_SERVICE_ENDPOINT,
                                                                           callback_url=callback_uri)
-
+            self.call_automation_client.get_call_connection(
+                call_connection_id=call_connection_id)
             self.logger.info(f"Warm transfer call initiated to agent {new_call_connection}")
 
         except Exception as ex:
