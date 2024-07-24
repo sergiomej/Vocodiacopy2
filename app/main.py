@@ -9,6 +9,8 @@ from azure.eventgrid import EventGridEvent, SystemEventNames
 from flask import Flask, Response, request, json
 from util.disa_connection import DisaConnection
 from util.action_processor import ActionProcessor
+from db.cosmosdbconn import CosmosDBConnection
+from db.events.call_event import CallEvent
 from db.mariadbconn import MariaDBConnection
 
 from azure.communication.callautomation import (
@@ -49,13 +51,20 @@ call_automation_client = CallAutomationClient.from_connection_string(ACS_CONNECT
 
 recording_id = None
 recording_chunks_location = []
-max_retry = 2
+max_retry = 1
 
 app = Flask(__name__)
 
 correlation_id = ""
 
-logger = LoggerManager(logger_name="switch_logger", log_file="/var/log/call_log.log").handler()    #check call and import logging
+logger = LoggerManager(logger_name="switch_logger",
+                       log_file="/var/log/call_log.log").handler()  # check call and import logging
+
+cosmos_db = CosmosDBConnection(logger=logger, endpoint="https://milky-way-calling.documents.azure.com:443/",
+                               key="n07EmQti8ppFtoPTYzGxq9MIiV0mgYTiopfJxZneELrFWH5l891wO8CSlPyhSf45LIMO2ZusakjYACDbEv9elA==",
+                               database_name="switchdb_dev", container_name="call_events")
+
+cosmos_db.connect()
 
 # max_pool_size should be at least half the number of workers plus 1 and less than Max memcached connections - 1.
 IN_MEM_STATE_CLIENT = PooledClient("172.17.0.1", max_pool_size=5)
@@ -71,26 +80,36 @@ MARIADB_CLIENT.connect()
 # This method is safe to called in a parallel thread because the MARIADB_CLIENT is using a connection pool
 # that is safe-threaded.
 def async_db_recording_status(
-    current_correlation_id: str, current_server_call_id: str, current_recording_id: str, status: str
+        azure_correlation_id: str,
+        current_server_call_id: str,
+        current_recording_id: str,
+        disa_correlation_id: str,
+        status: str,
 ) -> None:
+    required_fields = "azure_correlation_id, server_call_id, recording_id, status"
+
+    fields = required_fields
+    value_holders = "%s, %s, %s, %s"
+    base_params = (azure_correlation_id, current_server_call_id, current_recording_id, status)
+
+    if disa_correlation_id:
+        fields += ", disa_correlation_id"
+        value_holders += ", %s"
+        base_params = base_params + (
+            disa_correlation_id,
+            status,
+        )
+    else:
+        base_params = base_params + (status,)
+
     SQL_QUERY = (
-        "INSERT INTO recordings(correlation_id, server_call_id, recording_id, status) "
-        "VALUES (%s, %s, %s, %s) "
+        f"INSERT INTO recordings({fields}) VALUES ({value_holders}) "
         "ON DUPLICATE KEY UPDATE status=%s"
     )
 
     logger.info("Inserting recording information into relational DB.")
 
-    MARIADB_CLIENT.execute_query(
-        SQL_QUERY,
-        (
-            current_correlation_id,
-            current_server_call_id,
-            current_recording_id,
-            status,
-            status,
-        ),
-    )
+    MARIADB_CLIENT.execute_query(SQL_QUERY, base_params)
 
 
 @app.route("/api/incomingCall", methods=['POST'])
@@ -105,7 +124,7 @@ def incoming_call_handler():
             return Response(response=json.dumps(validation_response), status=200)
         elif event.event_type == "Microsoft.Communication.IncomingCall":
             logger.info("Incoming call received: data=%s",
-                         event.data)
+                        event.data)
 
             if event.data['from']['kind'] == "phoneNumber":
                 caller_id = event.data['from']["phoneNumber"]["value"]
@@ -113,7 +132,7 @@ def incoming_call_handler():
                 caller_id = event.data['from']['rawId']
 
             logger.info("incoming call handler caller id: %s",
-                         caller_id)
+                        caller_id)
 
             if event.data['to']['kind'] == "phoneNumber":
                 did = event.data['to']["phoneNumber"]["value"]
@@ -121,10 +140,10 @@ def incoming_call_handler():
                 did = event.data['to']['rawId']
 
             logger.info("incoming call handler caller id: %s",
-                         caller_id)
+                        caller_id)
 
             logger.info("incoming call handler did: %s",
-                         did)
+                        did)
 
             incoming_call_context = event.data['incomingCallContext']
             guid = uuid.uuid4()
@@ -137,7 +156,7 @@ def incoming_call_handler():
                                                                     cognitive_services_endpoint=COGNITIVE_SERVICE_ENDPOINT,
                                                                     callback_url=callback_uri)
             logger.info("Answered call for connection id: %s",
-                         answer_call_result.call_connection_id)
+                        answer_call_result.call_connection_id)
             return Response(status=200)
 
 
@@ -201,18 +220,20 @@ def handle_callback(contextId):
                     )
 
                     transfer_agent = disa.get("TransferDestination", "")
-                    correlation_id = disa.get("CorrelationId", "")
+                    disa_correlation_id = disa.get("CorrelationId", "")
+                    azure_correlation_id = event.data['correlationId']
 
-                    logger.info(f"primer correlation_id: {correlation_id}")
+                    logger.info(f"DISA correlation_id: {disa_correlation_id}")
 
                     # We push the tracking to a separate process. We don't need to wait for it
                     # to finish, hence the lack of `.join()` calls.
                     track_recording = Thread(
                         target=async_db_recording_status,
                         args=(
-                            correlation_id,
+                            azure_correlation_id,
                             server_call_id,
                             recording_response.recording_id,
+                            disa_correlation_id,
                             "started",
                         ),
                     )
@@ -224,7 +245,7 @@ def handle_callback(contextId):
                         caller_id=caller_id,
                         call_automation_client=call_automation_client,
                         transfer_agent=transfer_agent,
-                        correlation_id=correlation_id,
+                        correlation_id=disa_correlation_id,
                     )
 
                     action_proc.process(disa["PlayBackAssets"])
@@ -276,7 +297,7 @@ def handle_callback(contextId):
                     # Call disconnected
                     # The call was finished in a non expected manner.
                     server_call_id = event.data["serverCallId"]
-                    correlation_id = event.data["correlationId"],
+                    azure_correlation_id = event.data["correlationId"]
                     recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id).decode('utf-8')
 
                     if recording_id_to_stop:
@@ -290,9 +311,10 @@ def handle_callback(contextId):
                         track_recording = Thread(
                             target=async_db_recording_status,
                             args=(
-                                correlation_id,
+                                azure_correlation_id,
                                 server_call_id,
                                 recording_id_to_stop,
+                                None,
                                 "disconnected",
                             ),
                         )
@@ -317,24 +339,40 @@ def handle_callback(contextId):
                     continue
                 case "PlayCompleted":
                     # Audio provided to call played correctly
-                    continue
+                    action = ""
+                    logger.info(f"PlayCompleted: [{event.data}]")
 
-                    # TODO: Be creative!
-                    # context = event.data['operationContext']
-                    # if context.lower() == TRANSFER_FAILED_CONTEXT.lower() or context.lower() == GOODBYE_CONTEXT.lower():
-                    #     handle_hangup(call_connection_id)
-                    # # Accepted
-                    # elif context.lower() == CONNECT_AGENT_CONTEXT.lower():
-                    #     if not AGENT_PHONE_NUMBER or AGENT_PHONE_NUMBER.isspace():
-                    #         logger.info(f"Agent phone number is empty")
-                    #         handle_play(call_connection_id=call_connection_id, text_to_play=AGENT_PHONE_NUMBER_EMPTY_PROMPT)
-                    #     else:
-                    #         logger.info(f"Initializing the Call transfer...")
-                    #         transfer_destination = PhoneNumberIdentifier(AGENT_PHONE_NUMBER)
-                    #         call_connection_client = call_automation_client.get_call_connection(
-                    #             call_connection_id=call_connection_id)
-                    #         call_connection_client.transfer_call_to_participant(target_participant=transfer_destination)
-                    #         logger.info(f"Transfer call initiated: {context}")
+                    context = event.data['operationContext']
+                    part = context.split('/', 1)
+
+                    if len(part) > 1:
+                        correlation_id = part[0]
+                        action = part[1]
+
+                    if action == "50":
+                        disa_response = asyncio.run(
+                            DisaConnection.run_disa_socket(
+                                correlation_id=correlation_id,
+                                message="",
+                            )
+                        )
+
+                        disa_response = json.loads(disa_response)
+
+                        logger.info(f"Response from disa: {disa_response}")
+
+                        correlation_id = disa_response["CorrelationId"]
+
+                        action_proc = ActionProcessor(
+                            logger=logging,
+                            call_connection_id=call_connection_id,
+                            caller_id=caller_id,
+                            call_automation_client=call_automation_client,
+                            transfer_agent="",
+                            correlation_id=correlation_id,
+                        )
+                        action_proc.process(disa_response["PlayBackAssets"])
+
                 case "PlayCanceled":
                     # Request to cancel a play worked
                     continue
@@ -347,7 +385,7 @@ def handle_callback(contextId):
                 case "CallEnded":
                     # The call has finished
                     server_call_id = event.data["serverCallId"]
-                    correlation_id = event.data["operationContext"],
+                    azure_correlation_id = event.data["correlationId"]
                     recording_id_to_stop = IN_MEM_STATE_CLIENT.get(server_call_id).decode('utf-8')
 
                     if recording_id_to_stop:
@@ -368,9 +406,10 @@ def handle_callback(contextId):
                         track_recording = Thread(
                             target=async_db_recording_status,
                             args=(
-                                correlation_id,
+                                azure_correlation_id,
                                 server_call_id,
                                 recording_response.recording_id,
+                                None,
                                 "stopped",
                             ),
                         )
@@ -387,32 +426,48 @@ def handle_callback(contextId):
                     logger.error(
                         f"Call transfer failed event received for connection id: {call_connection_id}"
                     )
-                    resultInformation = event.data["resultInformation"]
-                    sub_code = resultInformation["subCode"]
+                    result_information = event.data["resultInformation"]
+                    correlation_id = event.data["operationContext"]
+                    sub_code = result_information["subCode"]
                     # check for message extraction and code
                     logger.error(
                         f"Encountered error during call transfer, message=, code=, subCode={sub_code}"
                     )
-                    handle_play(
+
+                    action_proc = ActionProcessor(
+                        logger=logger,
                         call_connection_id=call_connection_id,
-                        text_to_play=CALLTRANSFER_FAILURE_PROMPT,
-                        context=TRANSFER_FAILED_CONTEXT,
+                        caller_id=caller_id,
+                        call_automation_client=call_automation_client,
+                        transfer_agent="",
+                        correlation_id=correlation_id,
                     )
+
+                    action_proc.handle_play_text(
+                        call_connection_id=call_connection_id,
+                        text="Transfer failed",
+                        context=correlation_id
+                    )
+
+                    action_proc.handle_hangup()
                 case "RecognizeFailed":
                     # User input couldn't be recognised.
                     result_info = event.data["resultInformation"]
                     reason_code = result_info["subCode"]
                     context = event.data["operationContext"]
 
+                    action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id,
+                                                  call_automation_client=call_automation_client)
+
                     global max_retry
 
-                    # Waiting for answer reached timeout, so we check if we can retry
-                    # more reason codes: https://learn.microsoft.com/en-us/azure/communication-services/how-tos/call-automation/recognize-action?pivots=programming-language-python#event-codes
                     if reason_code == 8510 and 0 < max_retry:
-                        handle_recognize(TIMEOUT_SILENCE_PROMPT, caller_id, call_connection_id)
+                        action_proc.handle_recognize(callerId=caller_id, call_connection_id=call_connection_id,
+                                                     context=context)
                         max_retry -= 1
                     else:
-                        handle_play(call_connection_id, GOODBYE_PROMPT, GOODBYE_CONTEXT)
+                        action_proc.handle_play_text(call_connection_id=call_connection_id, text=GOODBYE_PROMPT,
+                                                     context=context)
                 case "AddParticipanFailed":
                     # Added participant failed!
                     continue
@@ -435,6 +490,9 @@ def handle_callback(contextId):
         logger.info(f"error in event handling [{ex}]")
         line = sys.exc_info()[-1].tb_lineno
         logger.error("Error in line #{} Msg: {}".format(line, ex))
+        action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id,
+                                      call_automation_client=call_automation_client)
+        action_proc.handle_hangup()
         return Response(status=500)
 
 
