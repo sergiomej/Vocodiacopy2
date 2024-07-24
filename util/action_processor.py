@@ -136,8 +136,8 @@ class ActionProcessor:
     def warm_transfer(self, call_connection_id, agent_phone_number, context):
         try:
             call_automation_client_p = CallAutomationClient.from_connection_string(ACS_CONNECTION_STRING)
-            transfer_destination = PhoneNumberIdentifier(self.caller_id)
-            source = PhoneNumberIdentifier("+573044336760")
+            transfer_destination = PhoneNumberIdentifier("+573044336760")
+            source = PhoneNumberIdentifier(self.did)
 
             self.logger.info(f"Caller phone number: {self.caller_id}")
             self.logger.info(f"DID phone number: {self.did}")
