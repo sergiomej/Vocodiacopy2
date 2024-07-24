@@ -1,3 +1,4 @@
+import json
 import sys
 import time
 import asyncio
@@ -43,42 +44,32 @@ class ActionProcessor:
                     case 0:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
-
-                        #### TESTING PORP
-                        self.warm_transfer(call_connection_id=self.call_connection_id,
-                                           agent_phone_number=self.transfer_agent,
-                                           context=self.correlation_id)
-
                         self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
                         time.sleep(duration / 1000.0)
                     case 1:
                         url_file = self.parse_url(asset["RecordingUrl"])
-                        self.logger.info(f"Transfer to -> {self.transfer_agent}")
-                        self.transfer_call_to_agent(call_connection_id=self.call_connection_id,
-                                                    agent_phone_number=self.transfer_agent)
+                        self.handle_recognize(
+                            self.caller_id, self.call_connection_id,
+                            context=self.correlation_id, url=url_file)
                     case 2:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
                         self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
                         time.sleep(duration / 1000.0)
-                        self.handle_hangup()
-                    case 3:
+                        self.transfer_call_to_agent(call_connection_id=self.call_connection_id,
+                                                    agent_phone_number=self.transfer_agent)
+                    case 20:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
                         self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
                         time.sleep(duration / 1000.0)
-                        self.handle_hangup()
+                        self.warm_transfer(call_connection_id=self.call_connection_id,
+                                           agent_phone_number=self.transfer_agent)
                     case 50:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
                         self.handle_play(self.call_connection_id, url_file, context=self.correlation_id, action="50")
                         time.sleep(duration / 1000.0)
-                    case 21:
-                        url_file = self.parse_url(asset["RecordingUrl"])
-                        self.logger.info(f"Transfer to -> {self.transfer_agent}")
-                        self.warm_transfer(call_connection_id=self.call_connection_id,
-                                           agent_phone_number=self.transfer_agent,
-                                           context=self.correlation_id)
                     case _:
                         self.logger.info(f"No valid action [{asset}]")
         except Exception as e:
@@ -111,6 +102,8 @@ class ActionProcessor:
         else:
             operation_context = context
 
+        play_to = PhoneNumberIdentifier(self.caller_id)
+
         play_source = FileSource(url=url)
         self.call_automation_client.get_call_connection(call_connection_id).play_media_to_all(play_source,
                                                                                               operation_context=operation_context)
@@ -133,10 +126,10 @@ class ActionProcessor:
         except Exception as ex:
             self.logger.error(f"Error transferring call to agent: {ex}")
 
-    def warm_transfer(self, call_connection_id, agent_phone_number, context):
+    def warm_transfer(self, call_connection_id, agent_phone_number):
         try:
-            call_automation_client_p = CallAutomationClient.from_connection_string(ACS_CONNECTION_STRING)
-            transfer_destination = PhoneNumberIdentifier("+573044336760")
+            # call_automation_client_p = CallAutomationClient.from_connection_string(ACS_CONNECTION_STRING)
+            transfer_destination = PhoneNumberIdentifier(agent_phone_number)
             source = PhoneNumberIdentifier(self.did)
 
             self.logger.info(f"Caller phone number: {self.caller_id}")
@@ -146,14 +139,19 @@ class ActionProcessor:
             query_parameters = urlencode({"callerId": self.caller_id, "did": self.did})
             callback_uri = f"{CALLBACK_EVENTS_URI}/{guid}?{query_parameters}"
 
-            new_call_connection = call_automation_client_p.create_call(source_caller_id_number=source,
-                                                                       target_participant=transfer_destination,
-                                                                       operation_context=self.correlation_id,
-                                                                       callback_url=callback_uri)
+            operation_context = {
+                "first_call": False,
+                "caller_id": self.caller_id,
+                "call_connection_id": call_connection_id
+            }
 
-            self.call_automation_client.get_call_connection(
-                call_connection_id=call_connection_id)
-            self.logger.info(f"Warm transfer call initiated to agent {new_call_connection}")
+            self.call_automation_client.get_call_connection(call_connection_id).add_participant(
+                source_caller_id_number=source,
+                target_participant=transfer_destination,
+                operation_context=json.dumps(
+                    operation_context))
+
+            self.logger.info(f"Warm transfer call initiated to agent {self.call_automation_client}")
 
         except Exception as ex:
             self.logger.error(f"Error transferring call to agent: {ex}")

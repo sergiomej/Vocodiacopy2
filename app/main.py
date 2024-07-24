@@ -153,9 +153,14 @@ def incoming_call_handler():
 
             logger.info("callback url: %s", callback_uri)
 
+            operation_context = {
+                "first_call": True,
+            }
+
             answer_call_result = call_automation_client.answer_call(incoming_call_context=incoming_call_context,
                                                                     cognitive_services_endpoint=COGNITIVE_SERVICE_ENDPOINT,
-                                                                    callback_url=callback_uri)
+                                                                    callback_url=callback_uri,
+                                                                    operation_context=json.dumps(operation_context))
 
             logger.info("Answered call for connection id: %s",
                         answer_call_result.call_connection_id)
@@ -199,6 +204,10 @@ def handle_callback(contextId):
                         f"Call connected. Starting recording for serverCallId {server_call_id}"
                     )
 
+                    operation_context = json.loads(event.data.get("operationContext", {}))
+
+                    first_call = operation_context.get("first_call", False)
+
                     recording_response: RecordingProperties = (
                         call_automation_client.start_recording(
                             call_locator=ServerCallLocator(server_call_id),
@@ -217,41 +226,55 @@ def handle_callback(contextId):
                     # ServerCallId. This key, in theory, is unique per _phone call_.
                     IN_MEM_STATE_CLIENT.set(server_call_id, recording_response.recording_id)
 
-                    disa = DisaConnection.call_first_url(
-                        logger=logger, did=did, caller_id=caller_id
-                    )
+                    if first_call:
 
-                    transfer_agent = disa.get("TransferDestination", "")
-                    disa_correlation_id = disa.get("CorrelationId", "")
-                    azure_correlation_id = event.data['correlationId']
+                        disa = DisaConnection.call_first_url(
+                            logger=logger, did=did, caller_id=caller_id
+                        )
 
-                    logger.info(f"DISA correlation_id: {disa_correlation_id}")
+                        transfer_agent = disa.get("TransferDestination", "")
+                        disa_correlation_id = disa.get("CorrelationId", "")
+                        azure_correlation_id = event.data['correlationId']
 
-                    # We push the tracking to a separate process. We don't need to wait for it
-                    # to finish, hence the lack of `.join()` calls.
-                    track_recording = Thread(
-                        target=async_db_recording_status,
-                        args=(
-                            azure_correlation_id,
-                            server_call_id,
-                            recording_response.recording_id,
-                            disa_correlation_id,
-                            "started",
-                        ),
-                    )
-                    track_recording.start()
+                        logger.info(f"DISA correlation_id: {disa_correlation_id}")
 
-                    action_proc = ActionProcessor(
-                        logger=logger,
-                        call_connection_id=call_connection_id,
-                        caller_id=caller_id,
-                        did=did,
-                        call_automation_client=call_automation_client,
-                        transfer_agent=transfer_agent,
-                        correlation_id=disa_correlation_id,
-                    )
+                        # We push the tracking to a separate process. We don't need to wait for it
+                        # to finish, hence the lack of `.join()` calls.
+                        track_recording = Thread(
+                            target=async_db_recording_status,
+                            args=(
+                                azure_correlation_id,
+                                server_call_id,
+                                recording_response.recording_id,
+                                disa_correlation_id,
+                                "started",
+                            ),
+                        )
+                        track_recording.start()
 
-                    action_proc.process(disa["PlayBackAssets"])
+                        action_proc = ActionProcessor(
+                            logger=logger,
+                            call_connection_id=call_connection_id,
+                            caller_id=caller_id,
+                            did=did,
+                            call_automation_client=call_automation_client,
+                            transfer_agent=transfer_agent,
+                            correlation_id=disa_correlation_id
+                        )
+
+                        action_proc.process(disa["PlayBackAssets"])
+                    else:
+                        logger.info(f"Redirecting call!!!!!")
+                        #target_connection_id = event.data.get("callConnectionId", "")
+                        call_connection_id = operation_context.get("call_connection_id", "")
+                        if call_connection_id:
+                            call_automation_client.get_call_connection(
+                                call_connection_id=call_connection_id)
+
+                            #call_automation_client.redirect_call(incoming_call_context=incoming_call_context,
+                            #                                     target_participant=PhoneNumberIdentifier(
+                            #                                         "+573044336760"))
+
                 case "CallTransferAccepted":
                     # Call transfered to another endpoint
                     logging.info(
@@ -339,6 +362,7 @@ def handle_callback(contextId):
                     continue
                 case "ParticipantsUpdated":
                     # a participant status changed while call leg was connected to call
+                    logger.info(f"ParticipantsUpdated: [{event.data}]")
                     continue
                 case "PlayCompleted":
                     # Audio provided to call played correctly
