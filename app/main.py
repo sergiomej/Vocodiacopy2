@@ -1,6 +1,7 @@
 import uuid
 import sys
 import logging
+import os
 import asyncio
 
 from threading import Thread
@@ -27,6 +28,10 @@ from azure.communication.callautomation import (
 from azure.core.messaging import CloudEvent
 from pymemcache.client.base import PooledClient
 from util.logger_manager import LoggerManager
+from dotenv import dotenv_values
+
+VOCODIA_ENV = os.environ.get("VOCODIA_ENV", "development")
+ENV_CONFIG = dotenv_values(f".env.{VOCODIA_ENV}")
 
 # Your ACS resource connection string
 ACS_CONNECTION_STRING = "endpoint=https://communication-disa-test.unitedstates.communication.azure.com/;accesskey=o4eO9kiaTeFSCGX1ka7h5HNbGdTqVQH0sFLSKQWblmtkW81zjn86JQQJ99AFACULyCphSYATAAAAAZCSFls1"
