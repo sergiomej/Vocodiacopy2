@@ -37,7 +37,11 @@ ENV_CONFIG = dotenv_values(f".env.{VOCODIA_ENV}")
 CALLBACK_EVENTS_URI = ENV_CONFIG["CALLBACK_URI_HOST"] + "/api/callbacks"
 
 GOODBYE_PROMPT = "Thank you for calling! I hope I was able to assist you. Have a great day!"
-CONNECT_AGENT_PROMPT = "I'm sorry, I was not able to assist you with your request. Let me transfer you to an agent who can help you further. Please hold the line, and I willl connect you shortly."
+CONNECT_AGENT_PROMPT = (
+    "I'm sorry, I was not able to assist you with your request. Let me transfer you "
+    "to an agent who can help you further. Please hold the line, "
+    "and I will connect you shortly."
+)
 
 call_automation_client = CallAutomationClient.from_connection_string(
     ENV_CONFIG["ACS_CONNECTION_STRING"]
@@ -51,12 +55,17 @@ app = Flask(__name__)
 
 correlation_id = ""
 
-logger = LoggerManager(logger_name="switch_logger",
-                       log_file="/var/log/call_log.log").handler()  # check call and import logging
+logger = LoggerManager(
+    logger_name="switch_logger", log_file="/var/log/call_log.log"
+).handler()  # check call and import logging
 
-cosmos_db = CosmosDBConnection(logger=logger, endpoint="https://milky-way-calling.documents.azure.com:443/",
-                               key="n07EmQti8ppFtoPTYzGxq9MIiV0mgYTiopfJxZneELrFWH5l891wO8CSlPyhSf45LIMO2ZusakjYACDbEv9elA==",
-                               database_name="switchdb_dev", container_name="call_events")
+cosmos_db = CosmosDBConnection(
+    logger=logger,
+    endpoint=ENV_CONFIG["COSMOS_DB_ENDPOINT"],
+    key=ENV_CONFIG["COSMOS_DB_KEY"],
+    database_name=ENV_CONFIG["COSMOS_DB_DATABASE"],
+    container_name=ENV_CONFIG["COSMOS_DB_CONTAINER"],
+)
 
 cosmos_db.connect()
 
