@@ -70,12 +70,16 @@ cosmos_db = CosmosDBConnection(
 cosmos_db.connect()
 
 # max_pool_size should be at least half the number of workers plus 1 and less than Max memcached connections - 1.
-IN_MEM_STATE_CLIENT = PooledClient("127.0.0.1", max_pool_size=5)
+IN_MEM_STATE_CLIENT = PooledClient(ENV_CONFIG["MEMCACHED_HOST"], max_pool_size=5)
 
 # Database Client
 # Pool size should be at least half of the number of workers plus 1 and less than Max DB connections - 1.
 MARIADB_CLIENT = MariaDBConnection(
-    host="172.210.60.9", user="root", database="events", password="maria123", pool_size=5
+    host=ENV_CONFIG["MARIADB_HOST"],
+    user=ENV_CONFIG["MARIADB_USER"],
+    database=ENV_CONFIG["MARIADB_DATABASE"],
+    password=ENV_CONFIG["MARIADB_PASS"],
+    pool_size=5,
 )
 MARIADB_CLIENT.connect()
 
