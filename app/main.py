@@ -33,26 +33,15 @@ from dotenv import dotenv_values
 VOCODIA_ENV = os.environ.get("VOCODIA_ENV", "development")
 ENV_CONFIG = dotenv_values(f".env.{VOCODIA_ENV}")
 
-# Your ACS resource connection string
-ACS_CONNECTION_STRING = "endpoint=https://communication-disa-test.unitedstates.communication.azure.com/;accesskey=o4eO9kiaTeFSCGX1ka7h5HNbGdTqVQH0sFLSKQWblmtkW81zjn86JQQJ99AFACULyCphSYATAAAAAZCSFls1"
-
-# Cognitive service endpoint
-COGNITIVE_SERVICE_ENDPOINT = "https://testaivocodia.cognitiveservices.azure.com/"
-
 # Callback events URI to handle callback events.
-CALLBACK_URI_HOST = "https://switch.ngrok.dev"
-CALLBACK_EVENTS_URI = CALLBACK_URI_HOST + "/api/callbacks"
+CALLBACK_EVENTS_URI = ENV_CONFIG["CALLBACK_URI_HOST"] + "/api/callbacks"
 
 GOODBYE_PROMPT = "Thank you for calling! I hope I was able to assist you. Have a great day!"
 CONNECT_AGENT_PROMPT = "I'm sorry, I was not able to assist you with your request. Let me transfer you to an agent who can help you further. Please hold the line, and I willl connect you shortly."
 
-# TRANSFER_FAILED_CONTEXT = "TransferFailed"
-# CONNECT_AGENT_CONTEXT = "ConnectAgent"
-# GOODBYE_CONTEXT = "Goodbye"
-
-# AGENT_PHONE_NUMBER_EMPTY_PROMPT = "I am sorry, we are currently experiencing high call volumes and all of our agents are currently busy. Our next available agent will call you back as soon as possible."
-
-call_automation_client = CallAutomationClient.from_connection_string(ACS_CONNECTION_STRING)
+call_automation_client = CallAutomationClient.from_connection_string(
+    ENV_CONFIG["ACS_CONNECTION_STRING"]
+)
 
 recording_id = None
 recording_chunks_location = []
