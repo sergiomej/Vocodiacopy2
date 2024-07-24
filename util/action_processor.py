@@ -93,7 +93,7 @@ class ActionProcessor:
         self.logger.info(f"Text to play: {text}")
         self.logger.info(f"Action: {action}")
 
-        play_source = TextSource(text=text, voice_name="en-US-AriaNeural", voice_kind="Neural")
+        play_source = TextSource(text=text, voice_name="en-US-AriaNeural")
         self.call_automation_client.get_call_connection(call_connection_id).play_media_to_all(play_source,
                                                                                               operation_context=context)
 
