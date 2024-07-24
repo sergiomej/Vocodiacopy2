@@ -39,3 +39,14 @@ buildswitchbase-prod:
 switch-push-prod:
 	docker tag switchbase_prod thedarkside362/switchbase_prod:1.0.0
 	docker push thedarkside362/buildswitchbase_prod:1.0.0
+
+.PHONY: build-and-push-dev
+build-and-push-dev:
+	make dist
+	make buildswitch-dev
+	make switch-push-dev
+
+.PHONY: deploy-dev
+deploy-dev:
+    sudo docker pull thedarkside362/vocodia_switch_dev:1.0.0
+	docker-compose -f etc/docker-compose-dev.yml
