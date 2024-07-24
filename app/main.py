@@ -198,8 +198,6 @@ def handle_callback(contextId):
             communication_event_type = event.type.split("Microsoft.Communication.").pop()
 
             server_call_id = event.data["serverCallId"]  # Mandatory for recording
-            # TODO: Extract to ENV
-            blob_container_url = "https://audiopoctest.blob.core.windows.net/audiorecordings"
 
             match communication_event_type:
                 case "CallConnected":
@@ -216,7 +214,7 @@ def handle_callback(contextId):
                             recording_channel_type=RecordingChannel.Unmixed,
                             recording_format_type=RecordingFormat.Wav,
                             recording_storage=AzureBlobContainerRecordingStorage(
-                                container_url=blob_container_url
+                                container_url=ENV_CONFIG["BLOB_CONTAINER_URL"]
                             ),
                         )
                     )
