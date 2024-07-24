@@ -1,22 +1,32 @@
 import sys
 import time
 import asyncio
+import uuid
 
 from html import unescape
+from urllib.parse import urlencode
+
 from util.disa_connection import DisaConnection
 from azure.communication.callautomation import (
     PhoneNumberIdentifier,
-    RecognizeInputType, FileSource
+    RecognizeInputType,
+    FileSource,
+    CommunicationIdentifier
 )
+
+COGNITIVE_SERVICE_ENDPOINT = "https://testaivocodia.cognitiveservices.azure.com/"
+CALLBACK_URI_HOST = "https://switch.ngrok.dev"
+CALLBACK_EVENTS_URI = CALLBACK_URI_HOST + "/api/callbacks"
 
 
 class ActionProcessor:
 
-    def __init__(self, logger, call_connection_id, caller_id=None, call_automation_client=None, transfer_agent="",
+    def __init__(self, logger, call_connection_id, did=None, caller_id=None, call_automation_client=None, transfer_agent="",
                  correlation_id=""):
         self.call_connection_id = call_connection_id
         self.logger = logger
         self.caller_id = caller_id
+        self.did = did
         self.call_automation_client = call_automation_client
         self.transfer_agent = transfer_agent
         self.correlation_id = correlation_id
@@ -30,6 +40,12 @@ class ActionProcessor:
                     case 0:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
+
+                        #### TESTING PORP
+                        self.warm_transfer(call_connection_id=self.call_connection_id,
+                                           agent_phone_number=self.transfer_agent,
+                                           context=self.correlation_id)
+
                         self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
                         time.sleep(duration / 1000.0)
                     case 1:
@@ -51,8 +67,9 @@ class ActionProcessor:
                     case 21:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         self.logger.info(f"Transfer to -> {self.transfer_agent}")
-                        self.transfer_call_to_agent(call_connection_id=self.call_connection_id,
-                                                    agent_phone_number=self.transfer_agent)
+                        self.warm_transfer(call_connection_id=self.call_connection_id,
+                                           agent_phone_number=self.transfer_agent,
+                                           context=self.correlation_id)
                     case _:
                         self.logger.info(f"No valid action [{asset}]")
         except Exception as e:
@@ -104,6 +121,26 @@ class ActionProcessor:
                 call_connection_client.transfer_call_to_participant(target_participant=transfer_destination,
                                                                     operation_context=self.correlation_id)
                 self.logger.info(f"Transfer call initiated to agent {agent_phone_number}")
+        except Exception as ex:
+            self.logger.error(f"Error transferring call to agent: {ex}")
+
+    def warm_transfer(self, call_connection_id, agent_phone_number, context):
+        try:
+            transfer_destination = PhoneNumberIdentifier(self.caller_id)
+
+            guid = uuid.uuid4()
+            query_parameters = urlencode({"callerId": self.caller_id, "did": self.did})
+            callback_uri = f"{CALLBACK_EVENTS_URI}/{guid}?{query_parameters}"
+
+            new_call_connection = self.call_automation_client.create_call(source_caller_id_number=transfer_destination,
+                                                                          target_participant=CommunicationIdentifier(
+                                                                              agent_phone_number),
+                                                                          operation_context=context,
+                                                                          cognitive_services_endpoint=COGNITIVE_SERVICE_ENDPOINT,
+                                                                          callback_url=callback_uri)
+
+            self.logger.info(f"Warm transfer call initiated to agent {new_call_connection}")
+
         except Exception as ex:
             self.logger.error(f"Error transferring call to agent: {ex}")
 

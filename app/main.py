@@ -21,7 +21,8 @@ from azure.communication.callautomation import (
     RecordingContent,
     RecordingFormat,
     RecordingProperties,
-    ServerCallLocator
+    ServerCallLocator,
+    CommunicationIdentifier
 )
 
 from azure.core.messaging import CloudEvent
@@ -80,11 +81,11 @@ MARIADB_CLIENT.connect()
 # This method is safe to called in a parallel thread because the MARIADB_CLIENT is using a connection pool
 # that is safe-threaded.
 def async_db_recording_status(
-    azure_correlation_id: str,
-    current_server_call_id: str,
-    current_recording_id: str,
-    disa_correlation_id: str,
-    status: str,
+        azure_correlation_id: str,
+        current_server_call_id: str,
+        current_recording_id: str,
+        disa_correlation_id: str,
+        status: str,
 ) -> None:
     required_fields = "azure_correlation_id, server_call_id, recording_id, status"
 
@@ -155,6 +156,7 @@ def incoming_call_handler():
             answer_call_result = call_automation_client.answer_call(incoming_call_context=incoming_call_context,
                                                                     cognitive_services_endpoint=COGNITIVE_SERVICE_ENDPOINT,
                                                                     callback_url=callback_uri)
+
             logger.info("Answered call for connection id: %s",
                         answer_call_result.call_connection_id)
             return Response(status=200)
@@ -243,6 +245,7 @@ def handle_callback(contextId):
                         logger=logger,
                         call_connection_id=call_connection_id,
                         caller_id=caller_id,
+                        did=did,
                         call_automation_client=call_automation_client,
                         transfer_agent=transfer_agent,
                         correlation_id=disa_correlation_id,
