@@ -1,0 +1,12 @@
+version: '3'
+services:
+  webserver:
+    container_name: switch_webserver
+    image: thedarkside362/vocodia_switch_dev:1.0.0
+    entrypoint: ["/bin/bash", "-c", "/apps/vocodia-dev/bin/switch.sh && tail -f /dev/stdout"]
+    ports:
+      - "8080:8080"
+    sysctls:
+      - net.core.somaxconn=4096
+    environment:
+      - PYTHONUNBUFFERED=1d

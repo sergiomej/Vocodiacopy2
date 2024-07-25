@@ -1,6 +1,7 @@
 import uuid
 import sys
 import logging
+import os
 import asyncio
 
 from threading import Thread
@@ -28,52 +29,58 @@ from azure.communication.callautomation import (
 from azure.core.messaging import CloudEvent
 from pymemcache.client.base import PooledClient
 from util.logger_manager import LoggerManager
+from dotenv import dotenv_values
 
-# Your ACS resource connection string
-ACS_CONNECTION_STRING = "endpoint=https://communication-disa-test.unitedstates.communication.azure.com/;accesskey=o4eO9kiaTeFSCGX1ka7h5HNbGdTqVQH0sFLSKQWblmtkW81zjn86JQQJ99AFACULyCphSYATAAAAAZCSFls1"
-
-# Cognitive service endpoint
-COGNITIVE_SERVICE_ENDPOINT = "https://testaivocodia.cognitiveservices.azure.com/"
+VOCODIA_ENV = os.environ.get("VOCODIA_ENV", "development")
+ENV_CONFIG = dotenv_values(f".env.{VOCODIA_ENV}")
 
 # Callback events URI to handle callback events.
-CALLBACK_URI_HOST = "https://switch.ngrok.dev"
-CALLBACK_EVENTS_URI = CALLBACK_URI_HOST + "/api/callbacks"
+CALLBACK_EVENTS_URI = ENV_CONFIG["CALLBACK_URI_HOST"] + "/api/callbacks"
 
 GOODBYE_PROMPT = "Thank you for calling! I hope I was able to assist you. Have a great day!"
-CONNECT_AGENT_PROMPT = "I'm sorry, I was not able to assist you with your request. Let me transfer you to an agent who can help you further. Please hold the line, and I willl connect you shortly."
+CONNECT_AGENT_PROMPT = (
+    "I'm sorry, I was not able to assist you with your request. Let me transfer you "
+    "to an agent who can help you further. Please hold the line, "
+    "and I will connect you shortly."
+)
 
-# TRANSFER_FAILED_CONTEXT = "TransferFailed"
-# CONNECT_AGENT_CONTEXT = "ConnectAgent"
-# GOODBYE_CONTEXT = "Goodbye"
-
-# AGENT_PHONE_NUMBER_EMPTY_PROMPT = "I am sorry, we are currently experiencing high call volumes and all of our agents are currently busy. Our next available agent will call you back as soon as possible."
-
-call_automation_client = CallAutomationClient.from_connection_string(ACS_CONNECTION_STRING)
+call_automation_client = CallAutomationClient.from_connection_string(
+    ENV_CONFIG["ACS_CONNECTION_STRING"]
+)
 
 recording_id = None
 recording_chunks_location = []
-max_retry = 2
+max_retry = 1
 
 app = Flask(__name__)
 
 correlation_id = ""
 
-logger = LoggerManager(logger_name="switch_logger",
-                       log_file="/var/log/call_log.log").handler()  # check call and import logging
+logger = LoggerManager(
+    logger_name="switch_logger", log_file="/var/log/call_log.log"
+).handler()  # check call and import logging
 
-cosmos_db = CosmosDBConnection(logger=logger, endpoint="https://milky-way-calling.documents.azure.com:443/",
-                               key="n07EmQti8ppFtoPTYzGxq9MIiV0mgYTiopfJxZneELrFWH5l891wO8CSlPyhSf45LIMO2ZusakjYACDbEv9elA==",
-                               database_name="switchdb_dev", container_name="call_events")
+cosmos_db = CosmosDBConnection(
+    logger=logger,
+    endpoint=ENV_CONFIG["COSMOS_DB_ENDPOINT"],
+    key=ENV_CONFIG["COSMOS_DB_KEY"],
+    database_name=ENV_CONFIG["COSMOS_DB_DATABASE"],
+    container_name=ENV_CONFIG["COSMOS_DB_CONTAINER"],
+)
 
 cosmos_db.connect()
 
 # max_pool_size should be at least half the number of workers plus 1 and less than Max memcached connections - 1.
-IN_MEM_STATE_CLIENT = PooledClient("127.0.0.1", max_pool_size=5)
+IN_MEM_STATE_CLIENT = PooledClient(ENV_CONFIG["MEMCACHED_HOST"], max_pool_size=5)
 
 # Database Client
 # Pool size should be at least half of the number of workers plus 1 and less than Max DB connections - 1.
 MARIADB_CLIENT = MariaDBConnection(
-    host="172.210.60.9", user="root", database="events", password="maria123", pool_size=5
+    host=ENV_CONFIG["MARIADB_HOST"],
+    user=ENV_CONFIG["MARIADB_USER"],
+    database=ENV_CONFIG["MARIADB_DATABASE"],
+    password=ENV_CONFIG["MARIADB_PASS"],
+    pool_size=5,
 )
 MARIADB_CLIENT.connect()
 
@@ -158,7 +165,7 @@ def incoming_call_handler():
             }
 
             answer_call_result = call_automation_client.answer_call(incoming_call_context=incoming_call_context,
-                                                                    cognitive_services_endpoint=COGNITIVE_SERVICE_ENDPOINT,
+                                                                    cognitive_services_endpoint=ENV_CONFIG["COGNITIVE_SERVICE_ENDPOINT"],
                                                                     callback_url=callback_uri,
                                                                     operation_context=json.dumps(operation_context))
 
@@ -193,8 +200,6 @@ def handle_callback(contextId):
             communication_event_type = event.type.split("Microsoft.Communication.").pop()
 
             server_call_id = event.data["serverCallId"]  # Mandatory for recording
-            # TODO: Extract to ENV
-            blob_container_url = "https://audiopoctest.blob.core.windows.net/audiorecordings"
 
             match communication_event_type:
                 case "CallConnected":
@@ -215,7 +220,7 @@ def handle_callback(contextId):
                             recording_channel_type=RecordingChannel.Unmixed,
                             recording_format_type=RecordingFormat.Wav,
                             recording_storage=AzureBlobContainerRecordingStorage(
-                                container_url=blob_container_url
+                                container_url=ENV_CONFIG["BLOB_CONTAINER_URL"]
                             ),
                         )
                     )
@@ -229,7 +234,10 @@ def handle_callback(contextId):
                     if first_call:
 
                         disa = DisaConnection.call_first_url(
-                            logger=logger, did=did, caller_id=caller_id
+                            logger=logger,
+                            did=did,
+                            caller_id=caller_id,
+                            inbound_host=ENV_CONFIG["DISA_INBOUND_HOST"]
                         )
 
                         transfer_agent = disa.get("TransferDestination", "")
@@ -298,6 +306,7 @@ def handle_callback(contextId):
                                 DisaConnection.run_disa_socket(
                                     correlation_id=event.data["operationContext"],
                                     message=speech_text,
+                                    ws_uri=ENV_CONFIG["DISA_WS_URI"]
                                 )
                             )
 
@@ -381,6 +390,7 @@ def handle_callback(contextId):
                             DisaConnection.run_disa_socket(
                                 correlation_id=correlation_id,
                                 message="",
+                                ws_uri=ENV_CONFIG["DISA_WS_URI"]
                             )
                         )
 
@@ -462,7 +472,7 @@ def handle_callback(contextId):
                     )
 
                     action_proc = ActionProcessor(
-                        logger=logging,
+                        logger=logger,
                         call_connection_id=call_connection_id,
                         caller_id=caller_id,
                         call_automation_client=call_automation_client,
@@ -470,10 +480,10 @@ def handle_callback(contextId):
                         correlation_id=correlation_id,
                     )
 
-                    action_proc.handle_play(
+                    action_proc.handle_play_text(
                         call_connection_id=call_connection_id,
-                        text_to_play="Transfer failed",
-                        context=""
+                        text="Transfer failed",
+                        context=correlation_id
                     )
 
                     action_proc.handle_hangup()
@@ -489,10 +499,12 @@ def handle_callback(contextId):
                     global max_retry
 
                     if reason_code == 8510 and 0 < max_retry:
-                        action_proc.handle_recognize(caller_id, call_connection_id)
+                        action_proc.handle_recognize(callerId=caller_id, call_connection_id=call_connection_id,
+                                                     context=context)
                         max_retry -= 1
                     else:
-                        action_proc.handle_play(call_connection_id, GOODBYE_PROMPT)
+                        action_proc.handle_play_text(call_connection_id=call_connection_id, text=GOODBYE_PROMPT,
+                                                     context=context)
                 case "AddParticipanFailed":
                     # Added participant failed!
                     continue

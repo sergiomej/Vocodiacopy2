@@ -13,7 +13,8 @@ from azure.communication.callautomation import (
     RecognizeInputType,
     FileSource,
     CallAutomationClient,
-    CommunicationIdentifier
+    CommunicationIdentifier,
+    RecognizeInputType, FileSource, TextSource
 )
 
 COGNITIVE_SERVICE_ENDPOINT = "https://testaivocodia.cognitiveservices.azure.com/"
@@ -78,10 +79,12 @@ class ActionProcessor:
             self.logger.error("Error in line #{} Msg: {}".format(line, e))
             self.handle_hangup()
 
-    def handle_recognize(self, callerId, call_connection_id, context="", url=""):
+    def handle_recognize(self, callerId, call_connection_id, context="", url=None):
         self.logger.info(f"URL to play: {url}")
+        play_source = None
 
-        play_source = FileSource(url=url)
+        if url:
+            play_source = FileSource(url=url)
 
         recognize_result = self.call_automation_client.get_call_connection(call_connection_id).start_recognizing_media(
             input_type=RecognizeInputType.SPEECH,
@@ -107,6 +110,14 @@ class ActionProcessor:
         play_source = FileSource(url=url)
         self.call_automation_client.get_call_connection(call_connection_id).play_media_to_all(play_source,
                                                                                               operation_context=operation_context)
+
+    def handle_play_text(self, call_connection_id, text=None, context=None, action=None):
+        self.logger.info(f"Text to play: {text}")
+        self.logger.info(f"Action: {action}")
+
+        play_source = TextSource(text=text, voice_name="en-US-AriaNeural")
+        self.call_automation_client.get_call_connection(call_connection_id).play_media_to_all(play_source,
+                                                                                              operation_context=context)
 
     def handle_hangup(self):
         self.call_automation_client.get_call_connection(self.call_connection_id).hang_up(is_for_everyone=True)

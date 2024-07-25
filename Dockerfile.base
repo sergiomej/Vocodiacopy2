@@ -1,0 +1,47 @@
+FROM --platform=linux/amd64 centos:centos7.9.2009
+
+#############################################################################################################
+# Base OS install for Vocodia Switch
+# Vocodia 2024
+#############################################################################################################
+
+ENV DEPLOY_DIR=/apps/vocodia-dev
+ENV LANG=en_US.UTF-8
+ARG MINICONDA_URL=https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+
+# System configuration and package updates
+RUN mkdir -p /var/log/gunicorn && \
+    chmod -R 777 /var/log && \
+    sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/*.repo && \
+    sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo && \
+    sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo && \
+    yum -y update && \
+    yum install -y epel-release && \
+    yum install -y wget bzip2 openssl-devel rsyslog sudo nc telnet gcc \
+                   swig emacs vim python-devel && \
+    yum groupinstall -y 'Development Tools' && \
+    yum clean all && \
+    groupadd -g 2034 vocodia-dev && \
+    useradd -u 2034 -g 2034 -c "vocodia-dev user" -s /bin/bash -m vocodia-dev && \
+    echo '%vocodia-dev ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
+    echo "vocodia-dev:vocodia-dev" | chpasswd && \
+    mkdir -p $(dirname ${DEPLOY_DIR}) && \
+    chown vocodia-dev:vocodia-dev $(dirname ${DEPLOY_DIR})
+
+# Switch to vocodia-dev user
+USER vocodia-dev
+
+# Install Miniconda and configuration
+RUN wget --quiet ${MINICONDA_URL} -O /tmp/anaconda.sh && \
+    /bin/bash /tmp/anaconda.sh -b -p ${DEPLOY_DIR} && \
+    rm /tmp/anaconda.sh && \
+    ${DEPLOY_DIR}/bin/conda config --set channel_priority false && \
+    echo "channels:\n  - conda-forge\n  - defaults\n" > ~/.condarc && \
+    echo "binstar_upload: false\nssl_verify: false\nreport_errors: false" >> ~/.condarc
+
+# Install Python packages
+RUN ${DEPLOY_DIR}/bin/pip install gunicorn
+
+# Create necessary directories
+RUN mkdir -p ${DEPLOY_DIR}/find-links/ && \
+    mkdir ~/.pip
