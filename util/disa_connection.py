@@ -6,14 +6,14 @@ from urllib import request, error
 class DisaConnection:
 
     @staticmethod
-    def call_first_url(logger, did, caller_id):
+    def call_first_url(logger, did, caller_id, inbound_host):
 
         if did.startswith('+'):
             did = did[2:]
         if caller_id.startswith('+'):
             caller_id = caller_id[2:]
 
-        url = f"https://dfainbound.azurewebsites.net/api/v1/inbound/requestroute/{did}/{caller_id}"
+        url = f"{inbound_host}/{did}/{caller_id}"
         logger.info(f"Calling url: {url}")
         try:
             response = request.urlopen(url)
@@ -25,9 +25,8 @@ class DisaConnection:
             logger.info(f'Error getting the first url [{url}]: {e}')
 
     @staticmethod
-    async def run_disa_socket(correlation_id, message):
-        uri = "wss://dwsspool.azurewebsites.net/dpm"  # Cambia esto por la URI de tu servidor WebSocket
-        response = await DisaConnection.send_and_receive(uri, correlation_id, message)
+    async def run_disa_socket(correlation_id, message, ws_uri):
+        response = await DisaConnection.send_and_receive(ws_uri, correlation_id, message)
         return response
 
     @staticmethod

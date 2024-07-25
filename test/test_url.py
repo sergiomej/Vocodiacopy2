@@ -1,5 +1,6 @@
 
 from util.disa_connection import DisaConnection
+from dotenv import dotenv_values
 
 import logging
 
@@ -10,5 +11,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+ENV_CONFIG = dotenv_values('.env.test')
 
-DisaConnection.call_first_url("+8332866392", "+16204222259")
+DisaConnection.call_first_url("+8332866392", "+16204222259", ENV_CONFIG["DISA_INBOUND_HOST"])

@@ -2,6 +2,8 @@ import websockets
 import asyncio
 import json
 
+from dotenv import dotenv_values
+
 
 async def send_and_receive(uri):
     try:
@@ -22,8 +24,8 @@ async def send_and_receive(uri):
         print(f"Conexión cerrada inesperadamente: {e}")
 
 async def main():
-    uri = "wss://dwsspool.azurewebsites.net/dpm"  # Cambia esto por la URI de tu servidor WebSocket
-    await send_and_receive(uri)
+    ENV_CONFIG = dotenv_values('env.test')
+    await send_and_receive(ENV_CONFIG["DISA_WS_URI"])
 
 if __name__ == "__main__":
     asyncio.run(main())
