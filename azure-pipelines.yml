@@ -1,6 +1,5 @@
 trigger:
 - dev
-- build-pipeline
 
 pool:
    vmImage: ubuntu-latest
