@@ -11,12 +11,6 @@ from azure.communication.callautomation import (
     RecognizeInputType, FileSource, TextSource
 )
 
-COGNITIVE_SERVICE_ENDPOINT = "https://testaivocodia.cognitiveservices.azure.com/"
-CALLBACK_URI_HOST = "https://switch.ngrok.dev"
-CALLBACK_EVENTS_URI = CALLBACK_URI_HOST + "/api/callbacks"
-ACS_CONNECTION_STRING = "endpoint=https://communication-disa-test.unitedstates.communication.azure.com/;accesskey=o4eO9kiaTeFSCGX1ka7h5HNbGdTqVQH0sFLSKQWblmtkW81zjn86JQQJ99AFACULyCphSYATAAAAAZCSFls1"
-
-
 class ActionProcessor:
 
     def __init__(self, logger, call_connection_id, did=None, caller_id=None, call_automation_client=None,
@@ -146,10 +140,6 @@ class ActionProcessor:
 
             self.logger.info(f"Caller phone number: {self.caller_id}")
             self.logger.info(f"DID phone number: {self.did}")
-
-            #guid = uuid.uuid4()
-            #query_parameters = urlencode({"callerId": self.caller_id, "did": self.did})
-            #callback_uri = f"{CALLBACK_EVENTS_URI}/{guid}?{query_parameters}"
 
             operation_context = {
                 "first_call": False,
