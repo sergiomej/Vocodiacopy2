@@ -7,7 +7,7 @@ ENV DEPLOY_DIR=/path/to/deploy/dir
 COPY dist/ ${DEPLOY_DIR}/find-links/
 
 USER root
-RUN usermod -aG syslog vocodia-dev && \
+RUN usermod -aG root vocodia-dev && \
     mkdir -p ${DEPLOY_DIR}/find-links/ && \
     cd ${DEPLOY_DIR}/find-links/ && \
     ls -ld /var/log && \
