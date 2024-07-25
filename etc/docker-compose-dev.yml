@@ -8,5 +8,7 @@ services:
       - "8080:8080"
     sysctls:
       - net.core.somaxconn=4096
+    volumes:
+      - /var/log/call_log.log:/var/log/call_log.log
     environment:
       - PYTHONUNBUFFERED=1d
