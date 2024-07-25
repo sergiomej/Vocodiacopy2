@@ -294,9 +294,13 @@ def handle_callback(contextId):
                                 f"Data to send DISA socket: correlation_id={event.data['operationContext']}, message={speech_text}"
                             )
 
+                            operation_context = json.loads(event.data.get("operationContext", {}))
+                            correlation_id = operation_context.get("correlation_id", "")
+                            did = operation_context.get("did", "")
+
                             disa_response = asyncio.run(
                                 DisaConnection.run_disa_socket(
-                                    correlation_id=event.data["operationContext"],
+                                    correlation_id=correlation_id,
                                     message=speech_text,
                                     ws_uri=ENV_CONFIG["DISA_WS_URI"]
                                 )
@@ -316,6 +320,7 @@ def handle_callback(contextId):
                                 call_automation_client=call_automation_client,
                                 transfer_agent=transfer_agent,
                                 correlation_id=correlation_id,
+                                did=did
                             )
                             action_proc.process(disa_response["PlayBackAssets"])
                         else:
@@ -371,12 +376,11 @@ def handle_callback(contextId):
                     action = ""
                     logger.info(f"PlayCompleted: [{event.data}]")
 
-                    context = event.data['operationContext']
-                    part = context.split('/', 1)
+                    operation_context = event.data.get("operationContext", {})
 
-                    if len(part) > 1:
-                        correlation_id = part[0]
-                        action = part[1]
+                    action = operation_context.get("action", "")
+                    correlation_id = operation_context.get("correlation_id", "")
+                    did = operation_context.get("did", "")
 
                     if action == "50":
                         disa_response = asyncio.run(
@@ -401,6 +405,7 @@ def handle_callback(contextId):
                             call_automation_client=call_automation_client,
                             transfer_agent=transfer_agent,
                             correlation_id=correlation_id,
+                            did=did
                         )
                         action_proc.process(disa_response["PlayBackAssets"])
 
