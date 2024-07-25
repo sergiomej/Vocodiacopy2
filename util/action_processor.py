@@ -1,15 +1,14 @@
 import json
 import sys
 import time
-import uuid
 
 from html import unescape
-from urllib.parse import urlencode
 
 from azure.communication.callautomation import (
     PhoneNumberIdentifier,
     RecognizeInputType, FileSource, TextSource
 )
+
 
 class ActionProcessor:
 
@@ -33,13 +32,11 @@ class ActionProcessor:
                     case 0:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
-                        self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
+                        self.handle_play(url_file)
                         time.sleep(duration / 1000.0)
                     case 1:
                         url_file = self.parse_url(asset["RecordingUrl"])
-                        self.handle_recognize(
-                            self.caller_id, self.call_connection_id,
-                            context=self.correlation_id, url=url_file)
+                        self.handle_recognize(url=url_file)
                     case 2:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
@@ -50,22 +47,22 @@ class ActionProcessor:
                     case 3:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
-                        self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
+                        self.handle_play(url_file)
                         time.sleep(duration / 1000.0)
                         self.handle_hangup()
                     case 20:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
-                        self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
+                        self.handle_play(url_file)
                         time.sleep(duration / 1000.0)
                         self.warm_transfer(call_connection_id=self.call_connection_id,
                                            agent_phone_number=self.transfer_agent)
-                    case 20:
+                    case 21:
                         continue
                     case 50:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
-                        self.handle_play(self.call_connection_id, url_file, context=self.correlation_id, action="50")
+                        self.handle_play(url_file, action="50")
                         time.sleep(duration / 1000.0)
                     case _:
                         self.logger.info(f"No valid action [{asset}]")
@@ -75,38 +72,45 @@ class ActionProcessor:
             self.logger.error("Error in line #{} Msg: {}".format(line, e))
             self.handle_hangup()
 
-    def handle_recognize(self, callerId, call_connection_id, context="", url=None):
+    def handle_recognize(self, url=None):
         self.logger.info(f"URL to play: {url}")
         play_source = None
 
         if url:
             play_source = FileSource(url=url)
 
-        recognize_result = self.call_automation_client.get_call_connection(call_connection_id).start_recognizing_media(
+        operation_context = {
+            "correlation_id": self.correlation_id,
+            "did": self.did
+        }
+
+        recognize_result = self.call_automation_client.get_call_connection(
+            self.call_connection_id).start_recognizing_media(
             input_type=RecognizeInputType.SPEECH,
-            target_participant=PhoneNumberIdentifier(callerId),
+            target_participant=PhoneNumberIdentifier(self.caller_id),
             end_silence_timeout=1.5,
             play_prompt=play_source,
             interrupt_prompt=True,
-            operation_context=context)
+            operation_context=json.dumps(operation_context))
 
         self.logger.info("handle_recognize : data=%s", recognize_result)
 
-    def handle_play(self, call_connection_id, url=None, context=None, action=None):
+    def handle_play(self, url=None, action=""):
         self.logger.info(f"URL to play: {url}")
         self.logger.info(f"Action: {action}")
 
-        if action == "50":
-            operation_context = f"{context}/{action}"
-        else:
-            operation_context = context
+        operation_context = {
+            "correlation_id": self.correlation_id,
+            "action": action,
+            "did": self.did
+        }
 
         # TODO: Needs to play to a specific participant
-        #play_to = PhoneNumberIdentifier(self.caller_id)
+        # play_to = PhoneNumberIdentifier(self.caller_id)
 
         play_source = FileSource(url=url)
-        self.call_automation_client.get_call_connection(call_connection_id).play_media_to_all(play_source,
-                                                                                              operation_context=operation_context)
+        self.call_automation_client.get_call_connection(self.call_connection_id).play_media_to_all(play_source,
+                                                                                                   operation_context=operation_context)
 
     def handle_play_text(self, call_connection_id, text=None, context=None, action=None):
         self.logger.info(f"Text to play: {text}")
@@ -123,7 +127,7 @@ class ActionProcessor:
         try:
             if not agent_phone_number or agent_phone_number.isspace():
                 self.logger.info("Agent phone number is empty")
-                self.handle_play(call_connection_id=call_connection_id, text_to_play="No agent to transfer")
+                self.handle_play_text(call_connection_id=call_connection_id, text="No agent to transfer")
             else:
                 transfer_destination = PhoneNumberIdentifier(agent_phone_number)
                 call_connection_client = self.call_automation_client.get_call_connection(
