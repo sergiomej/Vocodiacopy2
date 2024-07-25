@@ -53,6 +53,12 @@ class ActionProcessor:
                         time.sleep(duration / 1000.0)
                         self.transfer_call_to_agent(call_connection_id=self.call_connection_id,
                                                     agent_phone_number=self.transfer_agent)
+                    case 3:
+                        url_file = self.parse_url(asset["RecordingUrl"])
+                        duration = asset["Duration_MS"]
+                        self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
+                        time.sleep(duration / 1000.0)
+                        self.handle_hangup()
                     case 20:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
