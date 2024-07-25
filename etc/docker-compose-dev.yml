@@ -10,6 +10,7 @@ services:
       - net.core.somaxconn=4096
     volumes:
       - /var/log/call_log.log:/var/log/call_log.log
+      - ${PWD}/.env.development:/apps/vocodia-dev/lib/python3.12/site-packages/.env.development
     environment:
       - PYTHONUNBUFFERED=1d
   memcached:
