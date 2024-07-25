@@ -110,7 +110,8 @@ class ActionProcessor:
 
         play_source = FileSource(url=url)
         self.call_automation_client.get_call_connection(self.call_connection_id).play_media_to_all(play_source,
-                                                                                                   operation_context=operation_context)
+                                                                                                   operation_context=json.dumps(
+                                                                                                       operation_context))
 
     def handle_play_text(self, call_connection_id, text=None, context=None, action=None):
         self.logger.info(f"Text to play: {text}")
