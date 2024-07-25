@@ -40,10 +40,9 @@ class ActionProcessor:
                     case 2:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
-                        self.handle_play(self.call_connection_id, url_file, context=self.correlation_id)
+                        self.handle_play(url_file)
                         time.sleep(duration / 1000.0)
-                        self.transfer_call_to_agent(call_connection_id=self.call_connection_id,
-                                                    agent_phone_number=self.transfer_agent)
+                        self.transfer_call_to_agent()
                     case 3:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
@@ -124,18 +123,21 @@ class ActionProcessor:
     def handle_hangup(self):
         self.call_automation_client.get_call_connection(self.call_connection_id).hang_up(is_for_everyone=True)
 
-    def transfer_call_to_agent(self, call_connection_id, agent_phone_number):
+    def transfer_call_to_agent(self):
         try:
-            if not agent_phone_number or agent_phone_number.isspace():
+            self.logger.info(f"Init transfer to: {self.transfer_agent}")
+            if not self.transfer_agent or self.transfer_agent.isspace():
                 self.logger.info("Agent phone number is empty")
-                self.handle_play_text(call_connection_id=call_connection_id, text="No agent to transfer")
+                self.handle_play_text(call_connection_id=self.call_connection_id, text="No agent to transfer")
             else:
-                transfer_destination = PhoneNumberIdentifier(agent_phone_number)
+                transfer_destination = PhoneNumberIdentifier(f"+1{self.transfer_agent}")
+                transferee = PhoneNumberIdentifier(self.caller_id)
                 call_connection_client = self.call_automation_client.get_call_connection(
-                    call_connection_id=call_connection_id)
+                    call_connection_id=self.call_connection_id)
                 call_connection_client.transfer_call_to_participant(target_participant=transfer_destination,
-                                                                    operation_context=self.correlation_id)
-                self.logger.info(f"Transfer call initiated to agent {agent_phone_number}")
+                                                                    operation_context=self.correlation_id,
+                                                                    transferee=transferee)
+                self.logger.info(f"Transfer call initiated to agent {self.transfer_agent}")
         except Exception as ex:
             self.logger.error(f"Error transferring call to agent: {ex}")
 
