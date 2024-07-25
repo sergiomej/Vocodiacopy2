@@ -2,8 +2,6 @@ FROM thedarkside362/vocodiaswitchbase:1.0
 
 USER vocodia-dev
 
-ENV DEPLOY_DIR=/path/to/deploy/dir
-
 COPY dist/ ${DEPLOY_DIR}/find-links/
 
 USER root
@@ -11,6 +9,6 @@ RUN usermod -aG root vocodia-dev && \
     mkdir -p ${DEPLOY_DIR}/find-links/ && \
     cd ${DEPLOY_DIR}/find-links/ && \
     ls -ld /var/log && \
-    ${DEPLOY_DIR}/bin/pip install ${DEPLOY_DIR}/find-links/vocodiaSwitchServices-1.0.0.tar.gz
+    ${DEPLOY_DIR}/bin/pip install ${DEPLOY_DIR}/find-links/vocodiaswitchservices-1.0.0.tar.gz
 
 USER vocodia-dev
