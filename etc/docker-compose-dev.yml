@@ -12,3 +12,7 @@ services:
       - /var/log/call_log.log:/var/log/call_log.log
     environment:
       - PYTHONUNBUFFERED=1d
+  memcached:
+    image: memcached:alpine
+    ports:
+      - "11211:11211"
