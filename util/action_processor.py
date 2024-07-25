@@ -1,19 +1,13 @@
 import json
 import sys
 import time
-import asyncio
 import uuid
 
 from html import unescape
 from urllib.parse import urlencode
 
-from util.disa_connection import DisaConnection
 from azure.communication.callautomation import (
     PhoneNumberIdentifier,
-    RecognizeInputType,
-    FileSource,
-    CallAutomationClient,
-    CommunicationIdentifier,
     RecognizeInputType, FileSource, TextSource
 )
 
@@ -105,7 +99,8 @@ class ActionProcessor:
         else:
             operation_context = context
 
-        play_to = PhoneNumberIdentifier(self.caller_id)
+        # TODO: Needs to play to a specific participant
+        #play_to = PhoneNumberIdentifier(self.caller_id)
 
         play_source = FileSource(url=url)
         self.call_automation_client.get_call_connection(call_connection_id).play_media_to_all(play_source,
@@ -146,9 +141,9 @@ class ActionProcessor:
             self.logger.info(f"Caller phone number: {self.caller_id}")
             self.logger.info(f"DID phone number: {self.did}")
 
-            guid = uuid.uuid4()
-            query_parameters = urlencode({"callerId": self.caller_id, "did": self.did})
-            callback_uri = f"{CALLBACK_EVENTS_URI}/{guid}?{query_parameters}"
+            #guid = uuid.uuid4()
+            #query_parameters = urlencode({"callerId": self.caller_id, "did": self.did})
+            #callback_uri = f"{CALLBACK_EVENTS_URI}/{guid}?{query_parameters}"
 
             operation_context = {
                 "first_call": False,
