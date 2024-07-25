@@ -376,7 +376,8 @@ def handle_callback(contextId):
                     action = ""
                     logger.info(f"PlayCompleted: [{event.data}]")
 
-                    operation_context = event.data.get("operationContext", {})
+                    operation_context = event.data.get("operationContext", "{}")
+                    operation_context = json.loads(operation_context)
 
                     action = operation_context.get("action", "")
                     correlation_id = operation_context.get("correlation_id", "")
