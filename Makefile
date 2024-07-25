@@ -48,5 +48,5 @@ build-and-push-dev:
 
 .PHONY: deploy-dev
 deploy-dev:
-    sudo docker pull thedarkside362/vocodia_switch_dev:1.0.0
+	sudo docker pull thedarkside362/vocodia_switch_dev:1.0.0
 	docker-compose -f etc/docker-compose-dev.yml

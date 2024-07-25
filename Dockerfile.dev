@@ -9,6 +9,7 @@ RUN usermod -aG root vocodia-dev && \
     mkdir -p ${DEPLOY_DIR}/find-links/ && \
     cd ${DEPLOY_DIR}/find-links/ && \
     ls -ld /var/log && \
-    ${DEPLOY_DIR}/bin/pip install ${DEPLOY_DIR}/find-links/vocodiaswitchservices-1.0.0.tar.gz
+    ls -lha ${DEPLOY_DIR}/find-links/ && \
+    ${DEPLOY_DIR}/bin/pip install ${DEPLOY_DIR}/find-links/vocodiaSwitchServices-1.0.0.tar.gz
 
 USER vocodia-dev

@@ -12,8 +12,9 @@ steps:
     echo "Running make dist"
     make dist
     ls dist
+    docker login -u $(DOCKER_HUB_USER) -p $(DOCKER_PAT)
     make buildswitch-dev
     make switch-push-dev
-  displayName: 'Run make dist'
+  displayName: 'Building and pushing dev image'
 
 
