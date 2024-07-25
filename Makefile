@@ -10,7 +10,7 @@ clean:
 
 .PHONY: buildbase
 buildbase:
-	sudo docker build --network=host -t vocodiaswitchbase -f Dockerfile.base .
+	sudo docker build -t vocodiaswitchbase -f Dockerfile.base .
 
 .PHONY: switch-push-dev
 switch-push-dev:
@@ -28,12 +28,12 @@ buildswitchbase-local:
 
 .PHONY: buildswitch-dev
 buildswitch-dev:
-	sudo docker buildx build --network=host -t vocodia_switch_dev -f Dockerfile.dev .
+	sudo docker buildx build -t vocodia_switch_dev -f Dockerfile.dev .
 
 
 .PHONY: buildswitch-prod
 buildswitchbase-prod:
-	sudo docker buildx build --network=host -t switchbase_prod -f Dockerfile.dev .
+	sudo docker buildx build -t switchbase_prod -f Dockerfile.dev .
 
 .PHONY: switch-push-prod
 switch-push-prod:

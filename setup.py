@@ -17,7 +17,8 @@ setup(name='vocodiaSwitchServices',
           "pymemcache==4.0.0",
           "pymysql==1.1.1",
           "pytest==8.3.1",
-          "azure-cosmos==4.7.0"
+          "azure-cosmos==4.7.0",
+          "python-dotenv==1.0.1"
       ],
       scripts=[
           'bin/switch.sh',
