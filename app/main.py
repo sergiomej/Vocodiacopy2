@@ -11,19 +11,16 @@ from flask import Flask, Response, request, json
 from util.disa_connection import DisaConnection
 from util.action_processor import ActionProcessor
 from db.cosmosdbconn import CosmosDBConnection
-from db.events.call_event import CallEvent
 from db.mariadbconn import MariaDBConnection
 
 from azure.communication.callautomation import (
     AzureBlobContainerRecordingStorage,
     CallAutomationClient,
-    PhoneNumberIdentifier,
     RecordingChannel,
     RecordingContent,
     RecordingFormat,
     RecordingProperties,
-    ServerCallLocator,
-    CommunicationIdentifier
+    ServerCallLocator
 )
 
 from azure.core.messaging import CloudEvent
@@ -273,18 +270,13 @@ def handle_callback(contextId):
                         action_proc.process(disa["PlayBackAssets"])
                     else:
                         logger.info(f"Redirecting call!!!!!")
-                        #target_connection_id = event.data.get("callConnectionId", "")
                         call_connection_id = operation_context.get("call_connection_id", "")
                         if call_connection_id:
                             call_automation_client.get_call_connection(
                                 call_connection_id=call_connection_id)
 
-                            #call_automation_client.redirect_call(incoming_call_context=incoming_call_context,
-                            #                                     target_participant=PhoneNumberIdentifier(
-                            #                                         "+573044336760"))
-
                 case "CallTransferAccepted":
-                    # Call transfered to another endpoint
+                    # Call transferred to another endpoint
                     logging.info(
                         f"Call transfer accepted event received for connection id: {call_connection_id}"
                     )
@@ -315,13 +307,14 @@ def handle_callback(contextId):
                             logger.info(f"Response from disa: {disa_response}")
 
                             correlation_id = disa_response["CorrelationId"]
+                            transfer_agent = disa_response.get("TransferDestination", "")
 
                             action_proc = ActionProcessor(
                                 logger=logging,
                                 call_connection_id=call_connection_id,
                                 caller_id=caller_id,
                                 call_automation_client=call_automation_client,
-                                transfer_agent="",
+                                transfer_agent=transfer_agent,
                                 correlation_id=correlation_id,
                             )
                             action_proc.process(disa_response["PlayBackAssets"])
@@ -399,13 +392,14 @@ def handle_callback(contextId):
                         logger.info(f"Response from disa: {disa_response}")
 
                         correlation_id = disa_response["CorrelationId"]
+                        transfer_agent = disa_response.get("TransferDestination", "")
 
                         action_proc = ActionProcessor(
                             logger=logging,
                             call_connection_id=call_connection_id,
                             caller_id=caller_id,
                             call_automation_client=call_automation_client,
-                            transfer_agent="",
+                            transfer_agent=transfer_agent,
                             correlation_id=correlation_id,
                         )
                         action_proc.process(disa_response["PlayBackAssets"])

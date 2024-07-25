@@ -1,15 +1,14 @@
 import json
 import sys
 import time
-import uuid
 
 from html import unescape
-from urllib.parse import urlencode
 
 from azure.communication.callautomation import (
     PhoneNumberIdentifier,
     RecognizeInputType, FileSource, TextSource
 )
+
 
 class ActionProcessor:
 
@@ -60,7 +59,7 @@ class ActionProcessor:
                         time.sleep(duration / 1000.0)
                         self.warm_transfer(call_connection_id=self.call_connection_id,
                                            agent_phone_number=self.transfer_agent)
-                    case 20:
+                    case 21:
                         continue
                     case 50:
                         url_file = self.parse_url(asset["RecordingUrl"])
@@ -102,7 +101,7 @@ class ActionProcessor:
             operation_context = context
 
         # TODO: Needs to play to a specific participant
-        #play_to = PhoneNumberIdentifier(self.caller_id)
+        # play_to = PhoneNumberIdentifier(self.caller_id)
 
         play_source = FileSource(url=url)
         self.call_automation_client.get_call_connection(call_connection_id).play_media_to_all(play_source,
@@ -123,7 +122,7 @@ class ActionProcessor:
         try:
             if not agent_phone_number or agent_phone_number.isspace():
                 self.logger.info("Agent phone number is empty")
-                self.handle_play(call_connection_id=call_connection_id, text_to_play="No agent to transfer")
+                self.handle_play_text(call_connection_id=call_connection_id, text="No agent to transfer")
             else:
                 transfer_destination = PhoneNumberIdentifier(agent_phone_number)
                 call_connection_client = self.call_automation_client.get_call_connection(
