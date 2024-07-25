@@ -60,6 +60,8 @@ class ActionProcessor:
                         time.sleep(duration / 1000.0)
                         self.warm_transfer(call_connection_id=self.call_connection_id,
                                            agent_phone_number=self.transfer_agent)
+                    case 20:
+                        continue
                     case 50:
                         url_file = self.parse_url(asset["RecordingUrl"])
                         duration = asset["Duration_MS"]
