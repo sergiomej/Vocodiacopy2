@@ -314,7 +314,7 @@ def handle_callback(contextId):
                             transfer_agent = disa_response.get("TransferDestination", "")
 
                             action_proc = ActionProcessor(
-                                logger=logging,
+                                logger=logger,
                                 call_connection_id=call_connection_id,
                                 caller_id=caller_id,
                                 call_automation_client=call_automation_client,
@@ -400,7 +400,7 @@ def handle_callback(contextId):
                         transfer_agent = disa_response.get("TransferDestination", "")
 
                         action_proc = ActionProcessor(
-                            logger=logging,
+                            logger=logger,
                             call_connection_id=call_connection_id,
                             caller_id=caller_id,
                             call_automation_client=call_automation_client,
@@ -494,17 +494,17 @@ def handle_callback(contextId):
                     context = event.data["operationContext"]
 
                     action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id,
-                                                  call_automation_client=call_automation_client)
+                                                  call_automation_client=call_automation_client, caller_id=caller_id,
+                                                  correlation_id=correlation_id)
 
                     global max_retry
 
                     if reason_code == 8510 and 0 < max_retry:
-                        action_proc.handle_recognize(callerId=caller_id, call_connection_id=call_connection_id,
-                                                     context=context)
+                        action_proc.handle_recognize()
                         max_retry -= 1
                     else:
-                        action_proc.handle_play_text(call_connection_id=call_connection_id, text=GOODBYE_PROMPT,
-                                                     context=context)
+                        action_proc.handle_play_text(text=GOODBYE_PROMPT,
+                                                     context=correlation_id)
                 case "AddParticipanFailed":
                     # Added participant failed!
                     continue
