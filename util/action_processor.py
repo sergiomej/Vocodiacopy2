@@ -6,7 +6,7 @@ from html import unescape
 
 from azure.communication.callautomation import (
     PhoneNumberIdentifier,
-    RecognizeInputType, FileSource, TextSource
+    RecognizeInputType, FileSource, TextSource, SsmlSource
 )
 
 
@@ -71,25 +71,32 @@ class ActionProcessor:
             self.logger.error("Error in line #{} Msg: {}".format(line, e))
             self.handle_hangup()
 
-    def handle_recognize(self, url=None):
+    def handle_recognize(self, url=None, text=None, history=None):
         self.logger.info(f"URL to play: {url}")
         play_source = None
 
         if url:
             play_source = FileSource(url=url)
 
+        if text:
+            ssml_to_play = f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US"><voice name="en-US-DavisNeural"><mstts:express-as role="YoungAdultFemale" style="customerservice" styledegree="2">{text}</mstts:express-as></voice></speak>'
+            play_source = SsmlSource(ssml_text=ssml_to_play)
+
         operation_context = {
-            "correlation_id": self.correlation_id,
-            "did": self.did
+            "history": history,
+            "did": self.did,
+            "text": text
         }
 
         recognize_result = self.call_automation_client.get_call_connection(
             self.call_connection_id).start_recognizing_media(
             input_type=RecognizeInputType.SPEECH,
             target_participant=PhoneNumberIdentifier(self.caller_id),
-            end_silence_timeout=1.5,
+            interrupt_call_media_operation=True,
+            end_silence_timeout=1,
             play_prompt=play_source,
             interrupt_prompt=True,
+            initial_silence_timeout=60,
             operation_context=json.dumps(operation_context))
 
         self.logger.info("handle_recognize : data=%s", recognize_result)
@@ -119,25 +126,26 @@ class ActionProcessor:
         play_source = TextSource(text=text, voice_name="en-US-AriaNeural")
         self.call_automation_client.get_call_connection(call_connection_id).play_media_to_all(play_source,
                                                                                               operation_context=context)
+        time.sleep(3)
 
     def handle_hangup(self):
         self.call_automation_client.get_call_connection(self.call_connection_id).hang_up(is_for_everyone=True)
 
-    def transfer_call_to_agent(self):
+    def transfer_call_to_agent(self, transfer_agent=None):
         try:
-            self.logger.info(f"Init transfer to: {self.transfer_agent}")
-            if not self.transfer_agent or self.transfer_agent.isspace():
+            self.logger.info(f"Init transfer to: {transfer_agent}")
+            if not transfer_agent or transfer_agent.isspace():
                 self.logger.info("Agent phone number is empty")
                 self.handle_play_text(call_connection_id=self.call_connection_id, text="No agent to transfer")
             else:
-                transfer_destination = PhoneNumberIdentifier(f"+1{self.transfer_agent}")
+                transfer_destination = PhoneNumberIdentifier(f"{transfer_agent}")
                 transferee = PhoneNumberIdentifier(self.caller_id)
                 call_connection_client = self.call_automation_client.get_call_connection(
                     call_connection_id=self.call_connection_id)
                 call_connection_client.transfer_call_to_participant(target_participant=transfer_destination,
                                                                     operation_context=self.correlation_id,
                                                                     transferee=transferee)
-                self.logger.info(f"Transfer call initiated to agent {self.transfer_agent}")
+                self.logger.info(f"Transfer call initiated to agent {transfer_agent}")
         except Exception as ex:
             self.logger.error(f"Error transferring call to agent: {ex}")
 

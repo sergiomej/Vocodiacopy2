@@ -3,6 +3,7 @@ import sys
 import logging
 import os
 import asyncio
+import concurrent.futures
 
 from threading import Thread
 from urllib.parse import urlencode
@@ -12,6 +13,7 @@ from util.disa_connection import DisaConnection
 from util.action_processor import ActionProcessor
 from db.cosmosdbconn import CosmosDBConnection
 from db.mariadbconn import MariaDBConnection
+from util.lambda_handler import LambdaHandler
 
 from azure.communication.callautomation import (
     AzureBlobContainerRecordingStorage,
@@ -171,6 +173,10 @@ def incoming_call_handler():
             return Response(status=200)
 
 
+def call_lambda_handler(speech_text, history=None):
+    return LambdaHandler.lambda_handler(logger=logger, message=speech_text, history=history)
+
+
 @app.route("/api/callbacks/<contextId>", methods=["POST"])
 def handle_callback(contextId):
     try:
@@ -197,6 +203,7 @@ def handle_callback(contextId):
             communication_event_type = event.type.split("Microsoft.Communication.").pop()
 
             server_call_id = event.data["serverCallId"]  # Mandatory for recording
+            azure_correlation_id = event.data['correlationId']
 
             match communication_event_type:
                 case "CallConnected":
@@ -206,10 +213,52 @@ def handle_callback(contextId):
                         f"Call connected. Starting recording for serverCallId {server_call_id}"
                     )
 
+                    recording_response: RecordingProperties = (
+                        call_automation_client.start_recording(
+                            call_locator=ServerCallLocator(server_call_id),
+                            recording_content_type=RecordingContent.Audio,
+                            recording_channel_type=RecordingChannel.Unmixed,
+                            recording_format_type=RecordingFormat.Wav,
+                            recording_storage=AzureBlobContainerRecordingStorage(
+                                container_url=ENV_CONFIG["BLOB_CONTAINER_URL"]
+                            ),
+                        )
+                    )
+
+                    IN_MEM_STATE_CLIENT.set(server_call_id, recording_response.recording_id)
+
+                    track_recording = Thread(
+                        target=async_db_recording_status,
+                        args=(
+                            azure_correlation_id,
+                            server_call_id,
+                            recording_response.recording_id,
+                            azure_correlation_id,
+                            "started",
+                        ),
+                    )
+                    track_recording.start()
+
+                    logger.info(f"Started recording with ID: {recording_response.recording_id}")
+
                     operation_context = json.loads(event.data.get("operationContext", {}))
 
+                    action_proc = ActionProcessor(
+                        logger=logger,
+                        call_connection_id=call_connection_id,
+                        caller_id=caller_id,
+                        call_automation_client=call_automation_client,
+                        transfer_agent="",
+                        correlation_id="",
+                        did=did
+                    )
+
+                    action_proc.handle_recognize(text="Thank you for calling investor relations at Vocodia. My name is Deesa, how can I assist you today?")
+
+                    """
                     first_call = operation_context.get("first_call", False)
 
+                    
                     recording_response: RecordingProperties = (
                         call_automation_client.start_recording(
                             call_locator=ServerCallLocator(server_call_id),
@@ -274,6 +323,7 @@ def handle_callback(contextId):
                         if call_connection_id:
                             call_automation_client.get_call_connection(
                                 call_connection_id=call_connection_id)
+                    """
 
                 case "CallTransferAccepted":
                     # Call transferred to another endpoint
@@ -291,13 +341,57 @@ def handle_callback(contextId):
 
                         if speech_text is not None and len(speech_text) > 0:
                             logger.info(
-                                f"Data to send DISA socket: correlation_id={event.data['operationContext']}, message={speech_text}"
+                                f"Data to send: correlation_id={event.data['operationContext']}, message={speech_text}"
                             )
 
                             operation_context = json.loads(event.data.get("operationContext", {}))
-                            correlation_id = operation_context.get("correlation_id", "")
+                            history = operation_context.get("history", [])
                             did = operation_context.get("did", "")
 
+                            action_proc = ActionProcessor(
+                                logger=logger,
+                                call_connection_id=call_connection_id,
+                                caller_id=caller_id,
+                                call_automation_client=call_automation_client,
+                                transfer_agent="",
+                                correlation_id="",
+                                did=did
+                            )
+
+                            #response = LambdaHandler.lambda_handler(logger=logger, message=speech_text, conversation_id=correlation_id)
+
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(call_lambda_handler, speech_text, history)
+
+                                logger.info("Realizando otra acción mientras esperamos la respuesta de Lambda...")
+
+                                #action_proc.handle_play_text(call_connection_id=call_connection_id, text="Sure!. I'm waiting for a response from my brain")
+
+                                response = future.result()
+
+                            if response:
+                                #and response.status_code == 200
+                                logger.info(f"Function OPENAI response [{response.text}]")
+
+                                resp = json.loads(response.text)
+
+                                message = resp.get("answer")
+                                ssml = resp.get("ssml")
+                                history = resp.get("history")
+                                transfer_agent = resp.get("transfer_agent", "")
+
+                                if transfer_agent:
+                                    logger.info(f"Transfer agent: {transfer_agent}")
+                                    action_proc.handle_play_text(call_connection_id=call_connection_id,
+                                                                 text="Transferring to an expert!")
+
+                                    action_proc.transfer_call_to_agent(transfer_agent=transfer_agent)
+
+                                action_proc.handle_recognize(text=message, history=history)
+                            else:
+                                logger.error("Failed to get a valid response from LambdaHandler.")
+
+                            """
                             disa_response = asyncio.run(
                                 DisaConnection.run_disa_socket(
                                     correlation_id=correlation_id,
@@ -326,6 +420,8 @@ def handle_callback(contextId):
                         else:
                             logger.error(f"Something looks weird. No speech detected. {event.data}")
                             # Speech text didn't work???
+                        """
+
                 case "CallDisconnected":
                     # Call disconnected
                     # The call was finished in a non expected manner.
@@ -375,7 +471,7 @@ def handle_callback(contextId):
                     # Audio provided to call played correctly
                     action = ""
                     logger.info(f"PlayCompleted: [{event.data}]")
-
+                    """
                     operation_context = event.data.get("operationContext", "{}")
                     operation_context = json.loads(operation_context)
 
@@ -409,6 +505,7 @@ def handle_callback(contextId):
                             did=did
                         )
                         action_proc.process(disa_response["PlayBackAssets"])
+                    """
 
                 case "PlayCanceled":
                     # Request to cancel a play worked
@@ -492,6 +589,7 @@ def handle_callback(contextId):
                     result_info = event.data["resultInformation"]
                     reason_code = result_info["subCode"]
                     context = event.data["operationContext"]
+                    history = context.get("history", "")
 
                     action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id,
                                                   call_automation_client=call_automation_client, caller_id=caller_id,
@@ -500,10 +598,11 @@ def handle_callback(contextId):
                     global max_retry
 
                     if reason_code == 8510 and 0 < max_retry:
-                        action_proc.handle_recognize()
-                        max_retry -= 1
+                        action_proc.handle_recognize(history=history)
+                        max_retry -= 5
                     else:
                         action_proc.handle_play_text(text=GOODBYE_PROMPT,
+                                                     call_connection_id=call_connection_id,
                                                      context=correlation_id)
                 case "AddParticipanFailed":
                     # Added participant failed!
