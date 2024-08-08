@@ -71,6 +71,11 @@ class ActionProcessor:
             self.logger.error("Error in line #{} Msg: {}".format(line, e))
             self.handle_hangup()
 
+    def stop_all_media(self):
+        self.call_automation_client.get_call_connection(
+                self.call_connection_id).cancel_all_media_operations()
+
+
     def handle_recognize(self, url=None, text=None, history=None):
         self.logger.info(f"URL to play: {url}")
         play_source = None

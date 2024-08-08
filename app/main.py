@@ -164,7 +164,8 @@ def incoming_call_handler():
             }
 
             answer_call_result = call_automation_client.answer_call(incoming_call_context=incoming_call_context,
-                                                                    cognitive_services_endpoint=ENV_CONFIG["COGNITIVE_SERVICE_ENDPOINT"],
+                                                                    cognitive_services_endpoint=ENV_CONFIG[
+                                                                        "COGNITIVE_SERVICE_ENDPOINT"],
                                                                     callback_url=callback_uri,
                                                                     operation_context=json.dumps(operation_context))
 
@@ -253,77 +254,9 @@ def handle_callback(contextId):
                         did=did
                     )
 
-                    action_proc.handle_recognize(text="Thank you for calling investor relations at Vocodia. My name is Deesa, how can I assist you today?")
-
-                    """
-                    first_call = operation_context.get("first_call", False)
-
-                    
-                    recording_response: RecordingProperties = (
-                        call_automation_client.start_recording(
-                            call_locator=ServerCallLocator(server_call_id),
-                            recording_content_type=RecordingContent.Audio,
-                            recording_channel_type=RecordingChannel.Unmixed,
-                            recording_format_type=RecordingFormat.Wav,
-                            recording_storage=AzureBlobContainerRecordingStorage(
-                                container_url=ENV_CONFIG["BLOB_CONTAINER_URL"]
-                            ),
-                        )
-                    )
-
-                    logger.info(f"Started recording with ID: {recording_response.recording_id}")
-
-                    # We keep a common state for all the recordings that are associated to a
-                    # ServerCallId. This key, in theory, is unique per _phone call_.
-                    IN_MEM_STATE_CLIENT.set(server_call_id, recording_response.recording_id)
-
-                    if first_call:
-
-                        disa = DisaConnection.call_first_url(
-                            logger=logger,
-                            did=did,
-                            caller_id=caller_id,
-                            inbound_host=ENV_CONFIG["DISA_INBOUND_HOST"]
-                        )
-
-                        transfer_agent = disa.get("TransferDestination", "")
-                        disa_correlation_id = disa.get("CorrelationId", "")
-                        azure_correlation_id = event.data['correlationId']
-
-                        logger.info(f"DISA correlation_id: {disa_correlation_id}")
-
-                        # We push the tracking to a separate process. We don't need to wait for it
-                        # to finish, hence the lack of `.join()` calls.
-                        track_recording = Thread(
-                            target=async_db_recording_status,
-                            args=(
-                                azure_correlation_id,
-                                server_call_id,
-                                recording_response.recording_id,
-                                disa_correlation_id,
-                                "started",
-                            ),
-                        )
-                        track_recording.start()
-
-                        action_proc = ActionProcessor(
-                            logger=logger,
-                            call_connection_id=call_connection_id,
-                            caller_id=caller_id,
-                            did=did,
-                            call_automation_client=call_automation_client,
-                            transfer_agent=transfer_agent,
-                            correlation_id=disa_correlation_id
-                        )
-
-                        action_proc.process(disa["PlayBackAssets"])
-                    else:
-                        logger.info(f"Redirecting call!!!!!")
-                        call_connection_id = operation_context.get("call_connection_id", "")
-                        if call_connection_id:
-                            call_automation_client.get_call_connection(
-                                call_connection_id=call_connection_id)
-                    """
+                    action_proc.handle_recognize(
+                        text="Thank you for calling investor relations at Vocodia. My name is Deesa, how can I assist "
+                             "you today?")
 
                 case "CallTransferAccepted":
                     # Call transferred to another endpoint
@@ -358,19 +291,19 @@ def handle_callback(contextId):
                                 did=did
                             )
 
-                            #response = LambdaHandler.lambda_handler(logger=logger, message=speech_text, conversation_id=correlation_id)
+                            # response = LambdaHandler.lambda_handler(logger=logger, message=speech_text, conversation_id=correlation_id)
 
                             with concurrent.futures.ThreadPoolExecutor() as executor:
                                 future = executor.submit(call_lambda_handler, speech_text, history)
 
                                 logger.info("Realizando otra acción mientras esperamos la respuesta de Lambda...")
 
-                                #action_proc.handle_play_text(call_connection_id=call_connection_id, text="Sure!. I'm waiting for a response from my brain")
+                                # action_proc.handle_play_text(call_connection_id=call_connection_id, text="Sure!. I'm waiting for a response from my brain")
 
                                 response = future.result()
 
                             if response:
-                                #and response.status_code == 200
+                                # and response.status_code == 200
                                 logger.info(f"Function OPENAI response [{response.text}]")
 
                                 resp = json.loads(response.text)
@@ -390,37 +323,6 @@ def handle_callback(contextId):
                                 action_proc.handle_recognize(text=message, history=history)
                             else:
                                 logger.error("Failed to get a valid response from LambdaHandler.")
-
-                            """
-                            disa_response = asyncio.run(
-                                DisaConnection.run_disa_socket(
-                                    correlation_id=correlation_id,
-                                    message=speech_text,
-                                    ws_uri=ENV_CONFIG["DISA_WS_URI"]
-                                )
-                            )
-
-                            disa_response = json.loads(disa_response)
-
-                            logger.info(f"Response from disa: {disa_response}")
-
-                            correlation_id = disa_response["CorrelationId"]
-                            transfer_agent = disa_response.get("TransferDestination", "")
-
-                            action_proc = ActionProcessor(
-                                logger=logger,
-                                call_connection_id=call_connection_id,
-                                caller_id=caller_id,
-                                call_automation_client=call_automation_client,
-                                transfer_agent=transfer_agent,
-                                correlation_id=correlation_id,
-                                did=did
-                            )
-                            action_proc.process(disa_response["PlayBackAssets"])
-                        else:
-                            logger.error(f"Something looks weird. No speech detected. {event.data}")
-                            # Speech text didn't work???
-                        """
 
                 case "CallDisconnected":
                     # Call disconnected
@@ -471,41 +373,6 @@ def handle_callback(contextId):
                     # Audio provided to call played correctly
                     action = ""
                     logger.info(f"PlayCompleted: [{event.data}]")
-                    """
-                    operation_context = event.data.get("operationContext", "{}")
-                    operation_context = json.loads(operation_context)
-
-                    action = operation_context.get("action", "")
-                    correlation_id = operation_context.get("correlation_id", "")
-                    did = operation_context.get("did", "")
-
-                    if action == "50":
-                        disa_response = asyncio.run(
-                            DisaConnection.run_disa_socket(
-                                correlation_id=correlation_id,
-                                message="",
-                                ws_uri=ENV_CONFIG["DISA_WS_URI"]
-                            )
-                        )
-
-                        disa_response = json.loads(disa_response)
-
-                        logger.info(f"Response from disa: {disa_response}")
-
-                        correlation_id = disa_response["CorrelationId"]
-                        transfer_agent = disa_response.get("TransferDestination", "")
-
-                        action_proc = ActionProcessor(
-                            logger=logger,
-                            call_connection_id=call_connection_id,
-                            caller_id=caller_id,
-                            call_automation_client=call_automation_client,
-                            transfer_agent=transfer_agent,
-                            correlation_id=correlation_id,
-                            did=did
-                        )
-                        action_proc.process(disa_response["PlayBackAssets"])
-                    """
 
                 case "PlayCanceled":
                     # Request to cancel a play worked
@@ -588,18 +455,24 @@ def handle_callback(contextId):
                     # User input couldn't be recognised.
                     result_info = event.data["resultInformation"]
                     reason_code = result_info["subCode"]
-                    context = event.data["operationContext"]
+                    context = json.loads(event.data["operationContext"])
                     history = context.get("history", "")
 
                     action_proc = ActionProcessor(logger=logger, call_connection_id=call_connection_id,
                                                   call_automation_client=call_automation_client, caller_id=caller_id,
                                                   correlation_id=correlation_id)
 
+                    action_proc.stop_all_media()
+
+                    action_proc.handle_play_text(text="I'm sorry, I didn't get that",
+                                                 call_connection_id=call_connection_id,
+                                                 context=correlation_id)
+
                     global max_retry
 
                     if reason_code == 8510 and 0 < max_retry:
                         action_proc.handle_recognize(history=history)
-                        max_retry -= 5
+                        max_retry -= 1
                     else:
                         action_proc.handle_play_text(text=GOODBYE_PROMPT,
                                                      call_connection_id=call_connection_id,
