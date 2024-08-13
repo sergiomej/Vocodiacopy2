@@ -494,6 +494,7 @@ def handle_callback(contextId):
                         action_proc.handle_play_text(text=GOODBYE_PROMPT,
                                                      call_connection_id=call_connection_id,
                                                      context=correlation_id)
+                        action_proc.handle_hangup()
                 case "AddParticipanFailed":
                     # Added participant failed!
                     continue
