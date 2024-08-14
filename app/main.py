@@ -174,8 +174,8 @@ def incoming_call_handler():
             return Response(status=200)
 
 
-def call_lambda_handler(speech_text, history=None):
-    return LambdaHandler.lambda_handler(logger=logger, message=speech_text, history=history)
+def call_lambda_handler(speech_text, history=None, caller_id=None):
+    return LambdaHandler.lambda_handler(logger=logger, message=speech_text, history=history, caller_id=caller_id)
 
 
 @app.route("/api/callbacks/<contextId>", methods=["POST"])
@@ -294,7 +294,7 @@ def handle_callback(contextId):
                             # response = LambdaHandler.lambda_handler(logger=logger, message=speech_text, conversation_id=correlation_id)
 
                             with concurrent.futures.ThreadPoolExecutor() as executor:
-                                future = executor.submit(call_lambda_handler, speech_text, history)
+                                future = executor.submit(call_lambda_handler, speech_text, history, caller_id)
 
                                 logger.info("Realizando otra acción mientras esperamos la respuesta de Lambda...")
 
@@ -311,7 +311,12 @@ def handle_callback(contextId):
                                 message = resp.get("answer")
                                 ssml = resp.get("ssml")
                                 history = resp.get("history")
+                                action = resp.get("action", "")
                                 transfer_agent = resp.get("transfer_agent", "")
+
+                                if action == "hangup":
+                                    logger.info(f"Action to hangup [{action}]")
+                                    action_proc.handle_hangup()
 
                                 if transfer_agent:
                                     logger.info(f"Transfer agent: {transfer_agent}")
