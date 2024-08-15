@@ -5,10 +5,10 @@ import requests
 
 class LambdaHandler:
     @staticmethod
-    def lambda_handler(logger, message, history, caller_id):
+    def lambda_handler(logger, message, history, caller_id, chat):
         try:
             url = "https://vocodia-aria-junior.azurewebsites.net/api/agent"
-            data = {"prompt": message, "history": history, "chat": "2", "caller_id": caller_id}
+            data = {"prompt": message, "history": history, "chat": chat, "caller_id": caller_id}
 
             headers = {
                 'Content-Type': 'application/json',

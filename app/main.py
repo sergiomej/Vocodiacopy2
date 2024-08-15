@@ -161,6 +161,7 @@ def incoming_call_handler():
 
             operation_context = {
                 "first_call": True,
+                "callback_uri": callback_uri
             }
 
             answer_call_result = call_automation_client.answer_call(incoming_call_context=incoming_call_context,
@@ -174,8 +175,9 @@ def incoming_call_handler():
             return Response(status=200)
 
 
-def call_lambda_handler(speech_text, history=None, caller_id=None):
-    return LambdaHandler.lambda_handler(logger=logger, message=speech_text, history=history, caller_id=caller_id)
+def call_lambda_handler(speech_text, history=None, caller_id=None, chat=None):
+    return LambdaHandler.lambda_handler(logger=logger, message=speech_text, history=history, caller_id=caller_id,
+                                        chat=chat)
 
 
 @app.route("/api/callbacks/<contextId>", methods=["POST"])
@@ -212,6 +214,12 @@ def handle_callback(contextId):
 
                     logger.info(
                         f"Call connected. Starting recording for serverCallId {server_call_id}"
+                    )
+
+                    operation_context = json.loads(event.data.get("operationContext", {}))
+
+                    logger.info(
+                        f"Operation Context {operation_context}"
                     )
 
                     recording_response: RecordingProperties = (
@@ -294,7 +302,7 @@ def handle_callback(contextId):
                             # response = LambdaHandler.lambda_handler(logger=logger, message=speech_text, conversation_id=correlation_id)
 
                             with concurrent.futures.ThreadPoolExecutor() as executor:
-                                future = executor.submit(call_lambda_handler, speech_text, history, caller_id)
+                                future = executor.submit(call_lambda_handler, speech_text, history, caller_id, "completion")
 
                                 logger.info("Realizando otra acción mientras esperamos la respuesta de Lambda...")
 
@@ -312,7 +320,7 @@ def handle_callback(contextId):
                                 ssml = resp.get("ssml")
                                 history = resp.get("history")
                                 action = resp.get("action", "")
-                                transfer_agent = resp.get("transfer_agent", "")
+                                transfer_agent = resp.get("transfer_agent")
 
                                 if action == "hangup":
                                     logger.info(f"Action to hangup [{action}]")
@@ -322,8 +330,12 @@ def handle_callback(contextId):
                                     logger.info(f"Transfer agent: {transfer_agent}")
                                     action_proc.handle_play_text(call_connection_id=call_connection_id,
                                                                  text="Transferring to an expert!")
-
-                                    action_proc.transfer_call_to_agent(transfer_agent=transfer_agent)
+                                    guid = uuid.uuid4()
+                                    query_parameters = urlencode({"callerId": caller_id, "did": did})
+                                    action_proc.transfer_call_to_agent(transfer_agent=transfer_agent,
+                                                                       connection_string=ENV_CONFIG[
+                                                                           "ACS_CONNECTION_STRING"],
+                                                                       callback_uri=f"{CALLBACK_EVENTS_URI}/{guid}?{query_parameters}")
 
                                 action_proc.handle_recognize(text=message, history=history)
                             else:

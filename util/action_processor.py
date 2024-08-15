@@ -4,9 +4,10 @@ import time
 
 from html import unescape
 
+
 from azure.communication.callautomation import (
     PhoneNumberIdentifier,
-    RecognizeInputType, FileSource, TextSource, SsmlSource
+    RecognizeInputType, FileSource, TextSource, SsmlSource, CommunicationUserIdentifier, CommunicationIdentifier, CallAutomationClient
 )
 
 
@@ -135,21 +136,30 @@ class ActionProcessor:
     def handle_hangup(self):
         self.call_automation_client.get_call_connection(self.call_connection_id).hang_up(is_for_everyone=True)
 
-    def transfer_call_to_agent(self, transfer_agent=None):
+    def transfer_call_to_agent(self, transfer_agent=None, connection_string=None, callback_uri=None):
         try:
             self.logger.info(f"Init transfer to: {transfer_agent}")
             if not transfer_agent or transfer_agent.isspace():
                 self.logger.info("Agent phone number is empty")
                 self.handle_play_text(call_connection_id=self.call_connection_id, text="No agent to transfer")
             else:
-                transfer_destination = PhoneNumberIdentifier(f"{transfer_agent}")
-                transferee = PhoneNumberIdentifier(self.caller_id)
+                self.logger.info(f"caller: {self.caller_id} did: {self.did}")
+                caller_id_number = PhoneNumberIdentifier(self.did)
+                sip_headers = {}
+                sip_headers["User-To-User"] = "value"
+                sip_headers["X-MS-Custom-headerName"] = "headerValue"
+                target = PhoneNumberIdentifier(transfer_agent)
                 call_connection_client = self.call_automation_client.get_call_connection(
                     call_connection_id=self.call_connection_id)
-                call_connection_client.transfer_call_to_participant(target_participant=transfer_destination,
-                                                                    operation_context=self.correlation_id,
-                                                                    transferee=transferee)
-                self.logger.info(f"Transfer call initiated to agent {transfer_agent}")
+
+                result = call_connection_client.add_participant(
+                    target,
+                    sip_headers=sip_headers,
+                    source_caller_id_number=caller_id_number
+                )
+
+                self.logger.info(f"Transfer call initiated to agent {result}")
+
         except Exception as ex:
             self.logger.error(f"Error transferring call to agent: {ex}")
 
