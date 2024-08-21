@@ -211,7 +211,6 @@ def handle_callback(contextId):
             match communication_event_type:
                 case "CallConnected":
                     # Call connected
-
                     logger.info(
                         f"Call connected. Starting recording for serverCallId {server_call_id}"
                     )
@@ -230,7 +229,7 @@ def handle_callback(contextId):
                             recording_format_type=RecordingFormat.Wav,
                             recording_storage=AzureBlobContainerRecordingStorage(
                                 container_url=ENV_CONFIG["BLOB_CONTAINER_URL"]
-                            ),
+                            )
                         )
                     )
 
@@ -276,6 +275,9 @@ def handle_callback(contextId):
                     # We assume, for the time being, that we only handle speech to text.
                     # Options for recognition types: speech | dtmf | choices | speechordtmf
                     if event.data["recognitionType"] == "speech":
+                        call_handler = call_automation_client.get_call_connection(call_connection_id)
+                        call_handler.cancel_all_media_operations()
+
                         speech_text = event.data["speechResult"]["speech"]
 
                         logger.info("Recognition completed, speech_text =%s", speech_text)
@@ -340,6 +342,7 @@ def handle_callback(contextId):
                                 action_proc.handle_recognize(text=message, history=history)
                             else:
                                 logger.error("Failed to get a valid response from LambdaHandler.")
+                                logger.error(response)
 
                 case "CallDisconnected":
                     # Call disconnected
