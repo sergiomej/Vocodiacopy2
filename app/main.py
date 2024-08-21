@@ -327,8 +327,7 @@ def handle_callback(contextId):
                                 if action == "hangup":
                                     logger.info(f"Action to hangup [{action}]")
                                     action_proc.handle_hangup()
-
-                                if transfer_agent:
+                                elif transfer_agent:
                                     logger.info(f"Transfer agent: {transfer_agent}")
                                     action_proc.handle_play_text(call_connection_id=call_connection_id,
                                                                  text="Transferring to an expert!")
