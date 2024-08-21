@@ -338,8 +338,8 @@ def handle_callback(contextId):
                                                                        connection_string=ENV_CONFIG[
                                                                            "ACS_CONNECTION_STRING"],
                                                                        callback_uri=f"{CALLBACK_EVENTS_URI}/{guid}?{query_parameters}")
-
-                                action_proc.handle_recognize(text=message, history=history)
+                                else:
+                                    action_proc.handle_recognize(text=message, history=history)
                             else:
                                 logger.error("Failed to get a valid response from LambdaHandler.")
                                 logger.error(response)
