@@ -94,12 +94,13 @@ class ActionProcessor:
         }
 
         call_handler = self.call_automation_client.get_call_connection(self.call_connection_id)
-        call_handler.play_media(play_source=play_source, play_to="all")
+        # call_handler.play_media(play_source=play_source, play_to="all")
 
         ssml_silence = f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US"><voice name="en-US-AvaMultilingualNeural"><break time="3s"/></voice></speak>'
+            # play_prompt=SsmlSource(ssml_text=ssml_silence),
         self.call_automation_client.get_call_connection(
             self.call_connection_id).start_recognizing_media(
-            play_prompt=SsmlSource(ssml_text=ssml_silence),
+            play_prompt=play_source,
             input_type=RecognizeInputType.SPEECH,
             target_participant=PhoneNumberIdentifier(self.caller_id),
             initial_silence_timeout=60,
@@ -155,6 +156,10 @@ class ActionProcessor:
                 target = PhoneNumberIdentifier(transfer_agent)
                 call_connection_client = self.call_automation_client.get_call_connection(
                     call_connection_id=self.call_connection_id)
+
+                call_prop = call_connection_client.get_call_properties()
+
+                self.logger.info(f"Call state: {call_prop.call_connection_state}")
 
                 result = call_connection_client.add_participant(
                     target,
