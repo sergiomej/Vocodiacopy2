@@ -84,7 +84,7 @@ class ActionProcessor:
             play_source = FileSource(url=url)
 
         if text:
-            ssml_to_play = f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US"><voice name="en-US-DavisNeural"><mstts:express-as role="YoungAdultFemale" style="customerservice" styledegree="2">{text}</mstts:express-as></voice></speak>'
+            ssml_to_play = f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US"><voice name="en-US-AvaMultilingualNeural"><mstts:express-as role="YoungAdultFemale" style="customerservice" styledegree="2">{text}</mstts:express-as></voice></speak>'
             play_source = SsmlSource(ssml_text=ssml_to_play)
 
         operation_context = {
@@ -93,18 +93,23 @@ class ActionProcessor:
             "text": text
         }
 
-        recognize_result = self.call_automation_client.get_call_connection(
+        call_handler = self.call_automation_client.get_call_connection(self.call_connection_id)
+        # call_handler.play_media(play_source=play_source, play_to="all")
+
+        ssml_silence = f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US"><voice name="en-US-AvaMultilingualNeural"><break time="3s"/></voice></speak>'
+            # play_prompt=SsmlSource(ssml_text=ssml_silence),
+        self.call_automation_client.get_call_connection(
             self.call_connection_id).start_recognizing_media(
+            play_prompt=play_source,
             input_type=RecognizeInputType.SPEECH,
             target_participant=PhoneNumberIdentifier(self.caller_id),
-            interrupt_call_media_operation=True,
-            end_silence_timeout=1,
-            play_prompt=play_source,
-            interrupt_prompt=True,
             initial_silence_timeout=60,
+            end_silence_timeout=1,
+            interrupt_call_media_operation=True,
+            interrupt_prompt=True,
             operation_context=json.dumps(operation_context))
 
-        self.logger.info("handle_recognize : data=%s", recognize_result)
+        self.logger.info("Recognising media started.")
 
     def handle_play(self, url=None, action=""):
         self.logger.info(f"URL to play: {url}")
@@ -151,6 +156,10 @@ class ActionProcessor:
                 target = PhoneNumberIdentifier(transfer_agent)
                 call_connection_client = self.call_automation_client.get_call_connection(
                     call_connection_id=self.call_connection_id)
+
+                call_prop = call_connection_client.get_call_properties()
+
+                self.logger.info(f"Call state: {call_prop.call_connection_state}")
 
                 result = call_connection_client.add_participant(
                     target,
